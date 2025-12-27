@@ -1,0 +1,354 @@
+<h1>project:</h1> 
+
+i am planning to do for my private institute  a next project(frontend,backend) and deploy it on vercel ok?
+now i am planing to do sql tables, not mongodb
+but first i will tell u what the project need apis ok?
+i have:
+admin
+teachers
+students
+lessons(invidial,group)
+payment
+pricing
+
+and this website for teachers&admin only 
+
+first think is auth ok? so need token...
+login,logout, and admin can add teachers/update teaachers details
+and the teacehr can also edit its deitals and edit the password ok?
+
+admin:
+Export tables to  PDF
+1. 🔐 Authentication & Roles
+Admin login/logout
+JWT authentication (access + refresh tokens)
+Password reset for any user (teacher/student)
+Change password
+View and manage all accounts
+
+2. 👨‍🏫 Teacher Management
+Add new teacher (name, phone, email, subject, hourly rate, etc.)
+Edit teacher details (name, subject, password)
+Deactivate or delete teacher
+Stats per teacher:
+Total group/individual hours per level (ابتدائي / إعدادي / ثانوي)
+Total earnings (calculated from pricing × approved lessons)
+Pending (unapproved) lessons count
+
+3. 👩‍🎓 Student Management
+Add new student (name, parent contact, education level)
+Edit student details
+Assign to group lessons
+Assign to invidial lessons
+
+Delete/deactivate student
+Stats per student:
+Individual hours
+Group hours
+Total paid amount
+Remaining balance (paid - total cost)
+Payment history
+
+4. 📘 Lesson Management
+Individual Lessons
+Mark as approved/rejected
+Auto-calculate cost using pricing table
+Group Lessons
+Mark as approved/rejected
+Auto-calculate per-student cost
+Bulk Actions:
+Approve all pending lessons
+Filter by:
+Date range
+Teacher
+Student
+Level
+Approval statuس
+
+5. 💰 Payment Management
+Add new payment for a student
+View student payment history
+Edit or delete payment
+Auto-update student balance
+
+6. 💵 Pricing Management
+Add/update prices for combinations:
+Education Level (ابتدائي / إعدادي / ثانوي)
+Lesson Type (individual / group)
+Define:
+Price per hour
+
+
+
+7. 📊 Statistics & Reports
+By Teacher:
+
+Hours per education level (group/individual)
+
+Total salary this month (based on approved lessons)
+
+Lessons pending approval
+
+By Student:
+Total individual + group hours
+Total payments
+Remaining balance
+By Level:
+Total hours given (all teachers)
+Total revenue
+Global:
+Monthly income report
+Total number of lessons, teachers, students
+
+---
+TEACHER
+1. 🔐 Authentication
+
+Teacher can login/logout using username + password
+Receive JWT (access + refresh tokens)
+Can edit own profile (name, phone, subject)
+Can change password
+
+2. 👩‍🎓 Student Management (Teacher-Specific)
+Teachers can add students for private or group lessons.
+
+3. 📘 Lesson Management
+Teachers can create lessons (individual or group) and submit them for admin approval.
+
+4. 📊 Teacher Statistics
+Each teacher can view their personal statistics,type of the lessons & education level.
+
+
+6. ✏️ Profile & Settings
+
+Teachers can:
+Update name, subject, phone, etc.
+Change password
+Upload profile picture (optional)
+View profile info
+
+
+
+------
+<h1>sql:</h1> 
+1. users:
+Handles all login and authentication logic.
+
+```sql
+CREATE TABLE users (
+    id SERIAL PRIMARY KEY,
+    username VARCHAR(100) UNIQUE NOT NULL,
+    password_hash TEXT NOT NULL,
+    role VARCHAR(20) NOT NULL CHECK (role IN ('admin', 'subAdmin', 'teacher')),
+    is_active BOOLEAN DEFAULT TRUE
+);
+```
+
+```sql
+2. teachers
+Links each teacher to their user account and stores contact info.
+```sql
+CREATE TABLE teachers (
+    id SERIAL PRIMARY KEY,
+    user_id INT UNIQUE REFERENCES users(id) ON DELETE CASCADE,
+    full_name VARCHAR(120) NOT NULL,
+    phone VARCHAR(50)
+);
+```
+
+3. education_levels
+Reusable for lessons, pricing, and student categorization.
+```sql
+CREATE TABLE education_levels (
+    id SERIAL PRIMARY KEY,
+    name_ar VARCHAR(50) NOT NULL,  -- e.g. 'ابتدائي'
+    name_en VARCHAR(50) NOT NULL   -- e.g. 'Elementary'
+);
+```
+```sql
+4. students
+Student list linked to education level (not users, since no login).
+CREATE TABLE students (
+    id SERIAL PRIMARY KEY,
+    full_name VARCHAR(120) NOT NULL,
+    parent_contact VARCHAR(100),
+    education_level_id INT REFERENCES education_levels(id)
+);
+```
+5. pricing
+```sql
+CREATE TABLE pricing (
+    id SERIAL PRIMARY KEY,
+    education_level_id INT REFERENCES education_levels(id),
+    lesson_type VARCHAR(20) NOT NULL CHECK (lesson_type IN ('individual', 'group')),
+    price_per_hour DECIMAL(10,2) NOT NULL
+);
+```
+6. individual_lessons
+```sql
+CREATE TABLE individual_lessons (
+    id SERIAL PRIMARY KEY,
+    teacher_id INT REFERENCES teachers(id),
+    student_id INT REFERENCES students(id),
+    education_level_id INT REFERENCES education_levels(id),
+    date DATE NOT NULL,
+    hours DECIMAL(4,2) NOT NULL,
+    approved BOOLEAN DEFAULT FALSE,
+    total_cost DECIMAL(10,2),
+    created_at TIMESTAMP DEFAULT NOW()
+);
+
+```
+
+7. group_lessons
+```sql
+CREATE TABLE group_lessons (
+    id SERIAL PRIMARY KEY,
+    teacher_id INT REFERENCES teachers(id),
+    education_level_id INT REFERENCES education_levels(id),
+    date DATE NOT NULL,
+    hours DECIMAL(4,2) NOT NULL,
+    approved BOOLEAN DEFAULT FALSE,
+    total_cost DECIMAL(10,2),
+    created_at TIMESTAMP DEFAULT NOW()
+);
+
+```
+8. group_lesson_students
+A mapping table (many-to-many) between group lessons and students.
+CREATE TABLE group_lesson_students (
+    group_lesson_id INT REFERENCES group_lessons(id) ON DELETE CASCADE,
+    student_id INT REFERENCES students(id) ON DELETE CASCADE,
+    PRIMARY KEY (group_lesson_id, student_id)
+);
+
+9. payments
+CREATE TABLE payments (
+    id SERIAL PRIMARY KEY,
+    student_id INT REFERENCES students(id),
+    amount DECIMAL(10,2) NOT NULL,
+    payment_date DATE NOT NULL DEFAULT CURRENT_DATE,
+    note TEXT,
+    created_at TIMESTAMP DEFAULT NOW()
+);
+
+examples:
+
+Users
+| id | username   | role     | is_active |
+| -- | ---------- | -------- | --------- |
+| 1  | admin1     | admin    | TRUE      |
+| 2  | sub1       | subAdmin | TRUE      |
+| 3  | t_mohammad | teacher  | TRUE      |
+| 4  | t_sara     | teacher  | TRUE      |
+
+
+Teachers
+| id | user_id | full_name      | phone       |
+| -- | ------- | -------------- | ----------- |
+| 1  | 3       | Mohammad Ahmad | 050-1234567 |
+| 2  | 4       | Sara Ali       | 050-9876543 |
+
+
+Education Levels
+
+| id | name_ar | name_en    |
+| -- | ------- | ---------- |
+| 1  | ابتدائي | Elementary |
+| 2  | إعدادي  | Middle     |
+| 3  | ثانوي   | Secondary  |
+
+
+Students
+| id | full_name    | parent_contact | education_level_id |
+| -- | ------------ | -------------- | ------------------ |
+| 1  | Ahmad Khaled | 050-2223344    | 1                  |
+| 2  | Yara Hasan   | 050-3344556    | 2                  |
+| 3  | Rami Saeed   | 050-5556677    | 3                  |
+
+
+pricing
+
+| id | education_level_id | lesson_type | price_per_hour |
+| -- | ------------------ | ----------- | -------------- |
+| 1  | 1                  | individual  | 60.00          |
+| 2  | 1                  | group       | 40.00          |
+| 3  | 2                  | individual  | 70.00          |
+| 4  | 2                  | group       | 50.00          |
+| 5  | 3                  | individual  | 80.00          |
+| 6  | 3                  | group       | 55.00          |
+
+individual_lessons
+| id | teacher_id | student_id | education_level_id | date       | hours | approved | total_cost |
+| -- | ---------- | ---------- | ------------------ | ---------- | ----- | -------- | ---------- |
+| 1  | 1          | 1          | 1                  | 2025-11-10 | 2.0   | TRUE     | 120.00     |
+| 2  | 2          | 2          | 2                  | 2025-11-09 | 1.5   | FALSE    | 105.00     |
+
+group_lessons
+| id | teacher_id | education_level_id | date       | hours | approved | total_cost |
+| -- | ---------- | ------------------ | ---------- | ----- | -------- | ---------- |
+| 1  | 1          | 1                  | 2025-11-10 | 1.5   | TRUE     | 120.00     |
+| 2  | 2          | 2                  | 2025-11-11 | 2.0   | FALSE    | 150.00     |
+
+group_lesson_students
+| group_lesson_id | student_id |
+| --------------- | ---------- |
+| 1               | 1          |
+| 1               | 2          |
+| 2               | 2          |
+| 2               | 3          |
+payments
+| id | student_id | amount | payment_date | note             |
+| -- | ---------- | ------ | ------------ | ---------------- |
+| 1  | 1          | 200.00 | 2025-11-05   | November payment |
+| 2  | 2          | 150.00 | 2025-11-08   | Partial payment  |
+| 3  | 3          | 300.00 | 2025-11-10   | Full month       |
+
+
+
+---
+🧩 1️⃣ One-to-One (1:1)
+Each teacher is linked to exactly one user account (user_id is UNIQUE).
+Each user (with role='teacher') corresponds to at most one teacher record.
+✅ Type: One-to-One
+Reason:
+1 teacher ↔ 1 user
+(If you delete the user, the teacher is deleted too — cascade)
+
+
+🧩 2️⃣ One-to-Many (1:N)
+📌 Example A: education_levels → students
+One education level (e.g. ابتدائي) has many students.
+Each student belongs to one education level.
+✅ Type: One-to-Many
+Reason:
+1 education level → many students
+
+📌 Example B: teachers → individual_lessons
+One teacher can teach many lessons,
+Each lesson belongs to one teacher.
+✅ Type: One-to-Many
+
+📌 Example C: students → payments
+One student can have many payments.
+Each payment belongs to one student.
+✅ Type: One-to-Many
+
+🧩 3️⃣ Many-to-One (N:1)
+
+This is simply the inverse of One-to-Many.
+For example:
+In individual_lessons, each record belongs to one teacher → many lessons to one teacher.
+In payments, many payments belong to one student.
+✅ Type: Many-to-One
+Where:
+individual_lessons.teacher_id → teachers.id
+payments.student_id → students.id
+
+🧩 4️⃣ Many-to-Many (M:N)
+📌 Example: group_lessons ↔ students
+Connected through group_lesson_students
+One group lesson can include many students.
+One student can attend many group lessons
+This relationship is represented by the join table group_lesson_students.
+✅ Type: Many-to-Many
