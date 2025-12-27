@@ -11,3 +11,4 @@ COMMENT ON COLUMN students.created_by_teacher_id IS 'ID of the teacher who added
 -- Add index for better query performance
 CREATE INDEX IF NOT EXISTS idx_students_created_by_teacher ON students(created_by_teacher_id);
 
+

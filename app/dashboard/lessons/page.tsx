@@ -310,6 +310,17 @@ export default function LessonsPage() {
     });
   }, [groupLessons, groupFilters]);
 
+  // Filtered pending lessons - only the ones currently visible/filtered
+  const filteredPendingIndividualLessons = useMemo(
+    () => filteredIndividualLessons.filter((lesson) => !lesson.approved),
+    [filteredIndividualLessons]
+  );
+
+  const filteredPendingGroupLessons = useMemo(
+    () => filteredGroupLessons.filter((lesson) => !lesson.approved),
+    [filteredGroupLessons]
+  );
+
   const filteredRemedialLessons = useMemo(() => {
     return remedialLessons.filter((lesson) => {
       const searchLower = remedialFilters.search.toLowerCase();
@@ -752,13 +763,31 @@ export default function LessonsPage() {
 
   const handleBulkApproveIndividual = async () => {
     if (!isAdmin) return;
+    
+    // Get only the filtered pending lessons
+    const lessonsToApprove = filteredPendingIndividualLessons;
+    
+    if (lessonsToApprove.length === 0) {
+      alert('لا توجد دروس للاعتماد في الفلترة الحالية');
+      return;
+    }
+    
     setBulkApprovingIndividual(true);
     try {
-      const response = await api.approveAllIndividualLessons();
-      if (!response.success) {
-        alert(response.error || 'فشل اعتماد جميع الدروس الفردية');
-        return;
+      // Approve all filtered pending lessons
+      const approvePromises = lessonsToApprove.map((lesson) =>
+        api.approveIndividualLesson(lesson.id)
+      );
+      
+      const results = await Promise.all(approvePromises);
+      const failed = results.filter((r) => !r.success);
+      
+      if (failed.length > 0) {
+        alert(`فشل اعتماد ${failed.length} من ${lessonsToApprove.length} درس`);
+      } else {
+        alert(`تم اعتماد ${lessonsToApprove.length} درس بنجاح`);
       }
+      
       await refreshLessons();
     } catch (error: any) {
       alert(error.message || 'حدث خطأ أثناء اعتماد الدروس');
@@ -769,13 +798,31 @@ export default function LessonsPage() {
 
   const handleBulkApproveGroup = async () => {
     if (!isAdmin) return;
+    
+    // Get only the filtered pending lessons
+    const lessonsToApprove = filteredPendingGroupLessons;
+    
+    if (lessonsToApprove.length === 0) {
+      alert('لا توجد دروس للاعتماد في الفلترة الحالية');
+      return;
+    }
+    
     setBulkApprovingGroup(true);
     try {
-      const response = await api.approveAllGroupLessons();
-      if (!response.success) {
-        alert(response.error || 'فشل اعتماد جميع الدروس الجماعية');
-        return;
+      // Approve all filtered pending lessons
+      const approvePromises = lessonsToApprove.map((lesson) =>
+        api.approveGroupLesson(lesson.id)
+      );
+      
+      const results = await Promise.all(approvePromises);
+      const failed = results.filter((r) => !r.success);
+      
+      if (failed.length > 0) {
+        alert(`فشل اعتماد ${failed.length} من ${lessonsToApprove.length} درس`);
+      } else {
+        alert(`تم اعتماد ${lessonsToApprove.length} درس بنجاح`);
       }
+      
       await refreshLessons();
     } catch (error: any) {
       alert(error.message || 'حدث خطأ أثناء اعتماد الدروس');
@@ -1221,16 +1268,19 @@ export default function LessonsPage() {
             </div>
           </Card>
 
-          {isAdmin && pendingIndividualLessons.length > 0 && (
+          {isAdmin && filteredPendingIndividualLessons.length > 0 && (
             <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
               <p className="text-sm text-gray-600">
-                يوجد {pendingIndividualLessons.length} درس فردي بانتظار الاعتماد
+                يوجد {filteredPendingIndividualLessons.length} درس فردي بانتظار الاعتماد
+                {filteredPendingIndividualLessons.length !== pendingIndividualLessons.length && 
+                  ` (من أصل ${pendingIndividualLessons.length})`
+                }
               </p>
               <Button
                 onClick={handleBulkApproveIndividual}
                 isLoading={bulkApprovingIndividual}
               >
-                اعتماد جميع الدروس الفردية
+                اعتماد جميع الدروس الفردية المفلترة
               </Button>
             </div>
           )}
@@ -1463,16 +1513,19 @@ export default function LessonsPage() {
             </div>
           </Card>
 
-          {isAdmin && pendingGroupLessons.length > 0 && (
+          {isAdmin && filteredPendingGroupLessons.length > 0 && (
             <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
               <p className="text-sm text-gray-600">
-                يوجد {pendingGroupLessons.length} درس جماعي بانتظار الاعتماد
+                يوجد {filteredPendingGroupLessons.length} درس جماعي بانتظار الاعتماد
+                {filteredPendingGroupLessons.length !== pendingGroupLessons.length && 
+                  ` (من أصل ${pendingGroupLessons.length})`
+                }
               </p>
               <Button
                 onClick={handleBulkApproveGroup}
                 isLoading={bulkApprovingGroup}
               >
-                اعتماد جميع الدروس الجماعية
+                اعتماد جميع الدروس الجماعية المفلترة
               </Button>
             </div>
           )}
