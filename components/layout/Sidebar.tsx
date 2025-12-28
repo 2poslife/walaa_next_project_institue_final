@@ -15,7 +15,6 @@ interface NavItem {
 const navigation: NavItem[] = [
   { name: 'Statistics', href: '/dashboard/statistics', icon: '📈' },
   { name: 'Lessons', href: '/dashboard/lessons', icon: '📘' },
-  { name: 'Students', href: '/dashboard/students', icon: '👩‍🎓' },
   { name: 'Teachers', href: '/dashboard/teachers', icon: '👨‍🏫', adminOnly: true },
   { name: 'Payments', href: '/dashboard/payments', icon: '💰', adminOnly: true },
   { name: 'Pricing', href: '/dashboard/pricing', icon: '💵', adminOnly: true },

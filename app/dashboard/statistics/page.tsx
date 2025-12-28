@@ -5,9 +5,11 @@ import { Card } from '@/components/ui/Card';
 import { Table, TableColumn } from '@/components/ui/Table';
 import { Select } from '@/components/ui/Select';
 import { Input } from '@/components/ui/Input';
+import { Button } from '@/components/ui/Button';
 import { api } from '@/lib/api-client';
-import { IndividualLesson, GroupLesson } from '@/types';
+import { IndividualLesson, GroupLesson, RemedialLesson } from '@/types';
 import { useAuth } from '@/contexts/AuthContext';
+import { downloadCSV, formatDateForFilename, LessonExportRow } from '@/lib/utils/export';
 
 interface PastLesson {
   id: string;
@@ -44,6 +46,8 @@ interface StudentStat {
   individualHours: number;
   groupLessons: number;
   groupHours: number;
+  remedialLessons: number;
+  remedialHours: number;
 }
 
 interface TeacherLevelRow {
@@ -64,6 +68,7 @@ export default function StatisticsPage() {
   const { isTeacher, isAdmin, loading: authLoading, teacher } = useAuth();
   const [individualLessons, setIndividualLessons] = useState<IndividualLesson[]>([]);
   const [groupLessons, setGroupLessons] = useState<GroupLesson[]>([]);
+  const [remedialLessons, setRemedialLessons] = useState<RemedialLesson[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const statsYears = [2025, 2026];
@@ -113,9 +118,10 @@ export default function StatisticsPage() {
     setError('');
     try {
       const dateFilters = getDateFilters(statsYear, statsMonth);
-      const [individualRes, groupRes] = await Promise.all([
+      const [individualRes, groupRes, remedialRes] = await Promise.all([
         api.getIndividualLessons(dateFilters),
         api.getGroupLessons(dateFilters),
+        api.getRemedialLessons(dateFilters),
       ]);
 
       if (individualRes.success && Array.isArray(individualRes.data)) {
@@ -128,6 +134,12 @@ export default function StatisticsPage() {
         setGroupLessons(groupRes.data as GroupLesson[]);
       } else {
         setError((prev) => prev || groupRes.error || 'فشل في تحميل الدروس الجماعية');
+      }
+
+      if (remedialRes.success && Array.isArray(remedialRes.data)) {
+        setRemedialLessons(remedialRes.data as RemedialLesson[]);
+      } else {
+        setError((prev) => prev || remedialRes.error || 'فشل في تحميل הוראה מתקנת');
       }
     } catch (err: any) {
       setError(err.message || 'حدث خطأ أثناء تحميل الإحصائيات');
@@ -152,7 +164,15 @@ export default function StatisticsPage() {
     [groupLessons]
   );
 
-  const totalApprovedHours = totalApprovedIndividualHours + totalApprovedGroupHours;
+  const totalApprovedRemedialHours = useMemo(
+    () =>
+      remedialLessons
+        .filter((lesson) => lesson.approved)
+        .reduce((sum, lesson) => sum + (Number(lesson.hours) || 0), 0),
+    [remedialLessons]
+  );
+
+  const totalApprovedHours = totalApprovedIndividualHours + totalApprovedGroupHours + totalApprovedRemedialHours;
   const totalApprovedIndividualLessons = useMemo(
     () => individualLessons.filter((lesson) => lesson.approved).length,
     [individualLessons]
@@ -160,6 +180,10 @@ export default function StatisticsPage() {
   const totalApprovedGroupLessons = useMemo(
     () => groupLessons.filter((lesson) => lesson.approved).length,
     [groupLessons]
+  );
+  const totalApprovedRemedialLessons = useMemo(
+    () => remedialLessons.filter((lesson) => lesson.approved).length,
+    [remedialLessons]
   );
 
   const pastLessons = useMemo<PastLesson[]>(() => {
@@ -276,6 +300,8 @@ export default function StatisticsPage() {
             groupHours: number;
           }
         >;
+        remedialLessons: number;
+        remedialHours: number;
       }
     >();
 
@@ -286,6 +312,8 @@ export default function StatisticsPage() {
         teacherId: id,
         teacherName: name,
         levels: new Map(),
+        remedialLessons: 0,
+        remedialHours: 0,
       };
       teacherMap.set(id, entry);
       return entry;
@@ -331,6 +359,15 @@ export default function StatisticsPage() {
       }
     });
 
+    // Add remedial lessons (they don't have education_level, so add to each teacher's total)
+    remedialLessons.forEach((lesson) => {
+      if (!lesson.approved || !lesson.teacher_id) return;
+      const teacherName = lesson.teacher?.full_name || `معلم ${lesson.teacher_id}`;
+      const teacherEntry = ensureTeacher(lesson.teacher_id, teacherName);
+      teacherEntry.remedialLessons += 1;
+      teacherEntry.remedialHours += Number(lesson.hours) || 0;
+    });
+
     const levels = Array.from(levelSet.values()).sort((a, b) =>
       a.localeCompare(b, 'ar')
     );
@@ -354,13 +391,18 @@ export default function StatisticsPage() {
           row[`${level}-individual`] = indivText;
           row[`${level}-group`] = groupText;
         });
+        // Add remedial stats as a separate column
+        row['remedial'] = teacherEntry.remedialLessons > 0
+          ? `${teacherEntry.remedialLessons} درس (${formatHours(teacherEntry.remedialHours)} ساعة)`
+          : '0 درس (0 ساعة)';
+        searchParts.push('הוראה מתקנת');
         row.__search = searchParts.join(' ').toLowerCase();
         return row;
       })
       .sort((a, b) => a.teacherName.localeCompare(b.teacherName, 'ar'));
 
     return { rows, levels };
-  }, [individualLessons, groupLessons, showAdminView]);
+  }, [individualLessons, groupLessons, remedialLessons, showAdminView]);
 
   const adminStudentStats = useMemo<StudentStat[]>(() => {
     if (!showAdminView) return [];
@@ -376,19 +418,22 @@ export default function StatisticsPage() {
         individualHours: 0,
         groupLessons: 0,
         groupHours: 0,
+        remedialLessons: 0,
+        remedialHours: 0,
       };
       map.set(student.id, entry);
       return entry;
     };
 
     individualLessons.forEach((lesson) => {
-      if (!lesson.student) return;
+      if (!lesson.student || !lesson.approved) return;
       const entry = ensureEntry(lesson.student);
       entry.individualLessons += 1;
       entry.individualHours += Number(lesson.hours) || 0;
     });
 
     groupLessons.forEach((lesson) => {
+      if (!lesson.approved) return;
       lesson.students?.forEach((student) => {
         const entry = ensureEntry(student);
         entry.groupLessons += 1;
@@ -396,10 +441,17 @@ export default function StatisticsPage() {
       });
     });
 
+    remedialLessons.forEach((lesson) => {
+      if (!lesson.student || !lesson.approved) return;
+      const entry = ensureEntry(lesson.student);
+      entry.remedialLessons += 1;
+      entry.remedialHours += Number(lesson.hours) || 0;
+    });
+
     return Array.from(map.values()).sort((a, b) =>
       a.studentName.localeCompare(b.studentName, 'ar')
     );
-  }, [individualLessons, groupLessons, showAdminView]);
+  }, [individualLessons, groupLessons, remedialLessons, showAdminView]);
 
   const filteredTeacherStats = useMemo(() => {
     const { rows } = adminTeacherStats;
@@ -428,6 +480,12 @@ export default function StatisticsPage() {
         render: (row) => row[`${level}-group`] as string,
       });
     });
+    // Add remedial column (it doesn't have education level)
+    columns.push({
+      key: 'remedial',
+      header: 'הוראה מתקנת',
+      render: (row) => row['remedial'] as string,
+    });
     return columns;
   }, [adminTeacherStats.levels]);
 
@@ -438,6 +496,68 @@ export default function StatisticsPage() {
       stat.studentName.toLowerCase().includes(search)
     );
   }, [adminStudentStats, adminSearch]);
+
+  // Prepare data for export (teacher view only)
+  const prepareExportData = useMemo<LessonExportRow[]>(() => {
+    if (!showTeacherView) return [];
+    
+    const exportData: LessonExportRow[] = [];
+
+    // Individual lessons
+    individualLessons.forEach((lesson) => {
+      exportData.push({
+        type: 'درس فردي',
+        date: lesson.date,
+        student: lesson.student?.full_name || 'غير محدد',
+        education_level: lesson.education_level?.name_ar || '',
+        hours: Number(lesson.hours) || 0,
+        approved: lesson.approved ? 'نعم' : 'لا',
+        total_cost: lesson.total_cost || undefined,
+      });
+    });
+
+    // Group lessons - add each student as a separate row
+    groupLessons.forEach((lesson) => {
+      const students = lesson.students?.map((s) => s.full_name).join('، ') || 'غير محدد';
+      exportData.push({
+        type: 'درس جماعي',
+        date: lesson.date,
+        student: students,
+        education_level: lesson.education_level?.name_ar || '',
+        hours: Number(lesson.hours) || 0,
+        approved: lesson.approved ? 'نعم' : 'لا',
+        total_cost: lesson.total_cost || undefined,
+      });
+    });
+
+    // Remedial lessons
+    remedialLessons.forEach((lesson) => {
+      exportData.push({
+        type: 'הוראה מתקנת',
+        date: lesson.date,
+        student: lesson.student?.full_name || 'غير محدد',
+        education_level: '', // Remedial doesn't have education level
+        hours: Number(lesson.hours) || 0,
+        approved: lesson.approved ? 'نعم' : 'لا',
+        total_cost: lesson.total_cost || undefined,
+      });
+    });
+
+    // Sort by date descending
+    return exportData.sort((a, b) => b.date.localeCompare(a.date));
+  }, [individualLessons, groupLessons, remedialLessons, showTeacherView]);
+
+  const handleExportCSV = () => {
+    if (prepareExportData.length === 0) {
+      alert('لا توجد بيانات للتصدير');
+      return;
+    }
+    const teacherName = teacher?.full_name?.replace(/\s+/g, '_') || 'teacher';
+    const dateStr = formatDateForFilename(new Date());
+    const filename = `${teacherName}_lessons_${statsYear}_${statsMonth}_${dateStr}.csv`;
+    downloadCSV(prepareExportData, filename);
+  };
+
 
   if (authLoading || loading) {
     return (
@@ -552,7 +672,7 @@ export default function StatisticsPage() {
             </p>
           )}
         </div>
-        <div className="flex flex-wrap gap-4">
+        <div className="flex flex-wrap gap-4 items-end">
           <Select
             label="اختر السنة"
             value={statsYear}
@@ -567,6 +687,13 @@ export default function StatisticsPage() {
             options={statsMonths}
             className="w-40"
           />
+          <Button
+            onClick={handleExportCSV}
+            variant="secondary"
+            disabled={prepareExportData.length === 0}
+          >
+            تصدير CSV ({prepareExportData.length} درس)
+          </Button>
         </div>
       </div>
 
@@ -576,11 +703,11 @@ export default function StatisticsPage() {
         </div>
       )}
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard
           title="إجمالي الساعات المعتمدة"
           value={`${totalApprovedHours} ساعة`}
-          description="يشمل الدروس الفردية والجماعية المعتمدة"
+          description="يشمل الدروس الفردية والجماعية והוראה מתקנת المعتمدة"
         />
         <StatCard
           title="ساعات الدروس الفردية"
@@ -591,6 +718,11 @@ export default function StatisticsPage() {
           title="ساعات الدروس الجماعية"
           value={`${totalApprovedGroupHours} ساعة`}
           description={`${totalApprovedGroupLessons} درس جماعي معتمد`}
+        />
+        <StatCard
+          title="ساعات הוראה מתקנת"
+          value={`${totalApprovedRemedialHours} ساعة`}
+          description={`${totalApprovedRemedialLessons} درس הוראה מתקנת معتمد`}
         />
       </div>
 

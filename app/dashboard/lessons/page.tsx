@@ -80,6 +80,22 @@ export default function LessonsPage() {
   const [bulkApprovingIndividual, setBulkApprovingIndividual] = useState(false);
   const [bulkApprovingGroup, setBulkApprovingGroup] = useState(false);
 
+  // Student modal state
+  const [studentModalOpen, setStudentModalOpen] = useState(false);
+  const [studentFormData, setStudentFormData] = useState({
+    full_name: '',
+    parent_contact: '',
+    education_level_id: '',
+    class: '',
+  });
+  const [studentFormError, setStudentFormError] = useState('');
+  const [studentFieldErrors, setStudentFieldErrors] = useState<{
+    full_name?: string;
+    parent_contact?: string;
+    education_level_id?: string;
+  }>({});
+  const [studentSubmitting, setStudentSubmitting] = useState(false);
+
   const ITEMS_PER_PAGE = 15;
   const [individualPage, setIndividualPage] = useState(1);
   const [groupPage, setGroupPage] = useState(1);
@@ -242,6 +258,17 @@ export default function LessonsPage() {
     loadInitialData();
   }, [loadInitialData]);
 
+  const refreshStudents = async () => {
+    try {
+      const studentsRes = await api.getStudents();
+      if (studentsRes.success && Array.isArray(studentsRes.data)) {
+        setStudents(studentsRes.data as Student[]);
+      }
+    } catch (error) {
+      console.error('Error refreshing students:', error);
+    }
+  };
+
   const refreshLessons = async () => {
     try {
       const dateFilters = getDateFilters(selectedYear, selectedMonth);
@@ -261,6 +288,61 @@ export default function LessonsPage() {
       }
     } catch (error) {
       console.error('Refresh lessons error:', error);
+    }
+  };
+
+  const resetStudentForm = () => {
+    setStudentFormData({ full_name: '', parent_contact: '', education_level_id: '', class: '' });
+    setStudentFormError('');
+    setStudentFieldErrors({});
+  };
+
+  const handleStudentSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setStudentFormError('');
+    setStudentFieldErrors({});
+    setStudentSubmitting(true);
+
+    if (!studentFormData.full_name?.trim()) {
+      setStudentFieldErrors({ full_name: 'يرجى إدخال اسم الطالب' });
+      setStudentSubmitting(false);
+      return;
+    }
+
+    if (!studentFormData.education_level_id) {
+      setStudentFieldErrors({ education_level_id: 'يرجى اختيار المستوى التعليمي' });
+      setStudentSubmitting(false);
+      return;
+    }
+
+    try {
+      const submitData = {
+        full_name: studentFormData.full_name,
+        parent_contact: studentFormData.parent_contact || null,
+        education_level_id: studentFormData.education_level_id ? parseInt(studentFormData.education_level_id) : null,
+        class: studentFormData.class?.trim() || null,
+      };
+
+      const response = await api.createStudent(submitData);
+      if (response.success) {
+        await refreshStudents();
+        resetStudentForm();
+        setStudentModalOpen(false);
+      } else {
+        if (response.error?.includes('الطالب موجود')) {
+          setStudentFieldErrors({ full_name: 'الطالب موجود مسبقًا' });
+        } else if (response.error?.includes('المستوى')) {
+          setStudentFieldErrors({ education_level_id: response.error });
+        } else if (response.error?.includes('الهاتف')) {
+          setStudentFieldErrors({ parent_contact: response.error });
+        } else {
+          setStudentFormError(response.error || 'فشل إضافة الطالب');
+        }
+      }
+    } catch (err: any) {
+      setStudentFormError(err.message || 'حدث خطأ');
+    } finally {
+      setStudentSubmitting(false);
     }
   };
 
@@ -1331,6 +1413,15 @@ export default function LessonsPage() {
                   placeholder="اختر الطالب"
                   required
                 />
+                <div className="text-sm">
+                  <button
+                    type="button"
+                    onClick={() => setStudentModalOpen(true)}
+                    className="text-blue-600 hover:text-blue-800 underline"
+                  >
+                    إضافة طالب جديد
+                  </button>
+                </div>
 
                 <Select
                   label="المستوى التعليمي"
@@ -1665,9 +1756,7 @@ export default function LessonsPage() {
                         />
                         <Button
                           type="button"
-                          onClick={() =>
-                            router.push('/dashboard/students')
-                          }
+                          onClick={() => setStudentModalOpen(true)}
                           variant="secondary"
                         >
                           إضافة طالب جديد
@@ -2000,6 +2089,15 @@ export default function LessonsPage() {
                     label: s.full_name,
                   }))}
                 />
+                <div className="text-sm">
+                  <button
+                    type="button"
+                    onClick={() => setStudentModalOpen(true)}
+                    className="text-blue-600 hover:text-blue-800 underline"
+                  >
+                    إضافة طالب جديد
+                  </button>
+                </div>
 
                 <Input
                   label="تاريخ الدرس"
@@ -2079,6 +2177,102 @@ export default function LessonsPage() {
           )}
         </>
       )}
+
+      {/* Student Modal */}
+      <Modal
+        open={studentModalOpen}
+        onClose={() => {
+          setStudentModalOpen(false);
+          resetStudentForm();
+        }}
+      >
+        <Card title="إضافة طالب جديد">
+          <form onSubmit={handleStudentSubmit} className="space-y-4">
+            {studentFormError && (
+              <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
+                {studentFormError}
+              </div>
+            )}
+
+            <Input
+              label="الاسم الكامل"
+              type="text"
+              value={studentFormData.full_name}
+              onChange={(e) => {
+                setStudentFormData({ ...studentFormData, full_name: e.target.value });
+                setStudentFieldErrors((prev) => ({ ...prev, full_name: undefined }));
+              }}
+              required
+            />
+            {studentFieldErrors.full_name && (
+              <p className="text-sm text-red-600">{studentFieldErrors.full_name}</p>
+            )}
+
+            <Input
+              label="جهة اتصال ولي الأمر"
+              type="tel"
+              value={studentFormData.parent_contact}
+              onChange={(e) => {
+                setStudentFormData({ ...studentFormData, parent_contact: e.target.value });
+                setStudentFieldErrors((prev) => ({ ...prev, parent_contact: undefined }));
+              }}
+            />
+            {studentFieldErrors.parent_contact && (
+              <p className="text-sm text-red-600">{studentFieldErrors.parent_contact}</p>
+            )}
+
+            <Select
+              label="المستوى التعليمي"
+              value={studentFormData.education_level_id}
+              onChange={(e) => {
+                setStudentFormData({ ...studentFormData, education_level_id: e.target.value });
+                setStudentFieldErrors((prev) => ({ ...prev, education_level_id: undefined }));
+              }}
+              options={[
+                { value: '', label: 'اختر المستوى التعليمي' },
+                ...educationLevels.map((level) => ({
+                  value: level.id.toString(),
+                  label: level.name_ar || level.name_en || `Level ${level.id}`,
+                })),
+              ]}
+              required
+            />
+            {studentFieldErrors.education_level_id && (
+              <p className="text-sm text-red-600">{studentFieldErrors.education_level_id}</p>
+            )}
+
+            <Input
+              label="الصف"
+              type="text"
+              value={studentFormData.class}
+              onChange={(e) => {
+                setStudentFormData({ ...studentFormData, class: e.target.value });
+              }}
+              placeholder="مثال: أول، ثاني، ثالث..."
+            />
+
+            <div className="flex gap-2">
+              <Button 
+                type="submit" 
+                isLoading={studentSubmitting}
+                disabled={educationLevels.length === 0}
+              >
+                إضافة
+              </Button>
+              <Button 
+                type="button" 
+                variant="secondary" 
+                onClick={() => {
+                  setStudentModalOpen(false);
+                  resetStudentForm();
+                }}
+              >
+                إلغاء
+              </Button>
+            </div>
+          </form>
+        </Card>
+      </Modal>
     </div>
   );
 }
