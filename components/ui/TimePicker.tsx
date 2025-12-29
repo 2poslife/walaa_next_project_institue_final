@@ -10,10 +10,10 @@ interface TimePickerProps {
   disabled?: boolean;
 }
 
-// Generate time options from 10:00 to 23:00 in 15-minute intervals
+// Generate time options from 8:00 to 23:00 in 15-minute intervals
 const generateTimeOptions = () => {
   const options: string[] = [];
-  for (let hour = 10; hour <= 23; hour++) {
+  for (let hour = 8; hour <= 23; hour++) {
     for (let minute = 0; minute < 60; minute += 15) {
       const timeString = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
       options.push(timeString);
