@@ -449,9 +449,10 @@ export const api = {
     });
   },
 
-  async deleteGroupLesson(id: number) {
+  async deleteGroupLesson(id: number, deletionNote?: string) {
     return apiRequest(API_ROUTES.LESSONS.GROUP.BY_ID(id), {
       method: 'DELETE',
+      body: deletionNote ? JSON.stringify({ deletion_note: deletionNote }) : undefined,
     });
   },
 

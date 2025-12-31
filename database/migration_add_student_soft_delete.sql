@@ -10,3 +10,4 @@ ADD COLUMN IF NOT EXISTS deletion_note TEXT NULL;
 -- Create index for better query performance
 CREATE INDEX IF NOT EXISTS idx_students_deleted_at ON students(deleted_at);
 
+
