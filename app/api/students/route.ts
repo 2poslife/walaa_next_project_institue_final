@@ -15,14 +15,25 @@ export async function GET(request: NextRequest) {
       return unauthorizedResponse();
     }
 
-    const { data: students, error } = await supabaseAdmin
+    const { searchParams } = new URL(request.url);
+    const showDeleted = searchParams.get('show_deleted') === 'true';
+
+    let query = supabaseAdmin
       .from('students')
       .select(`
         *,
         education_level:education_levels(id, name_ar, name_en),
         created_by_teacher:teachers!created_by_teacher_id(id, full_name)
-      `)
-      .order('id', { ascending: true });
+      `);
+
+    // Filter out deleted students by default
+    // If show_deleted is true, show all students (both deleted and non-deleted)
+    if (!showDeleted) {
+      query = query.is('deleted_at', null);
+    }
+    // If show_deleted is true, don't filter - show all students
+
+    const { data: students, error } = await query.order('id', { ascending: true });
 
     if (error) {
       return errorResponse('Failed to fetch students');

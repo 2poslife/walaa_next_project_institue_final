@@ -72,6 +72,14 @@ export async function GET(request: NextRequest) {
     if (filters.approved !== undefined)
       query = query.eq('approved', filters.approved);
 
+    // Handle deleted filter - if not explicitly requesting deleted, exclude them
+    const showDeleted = searchParams.get('show_deleted') === 'true';
+    if (!showDeleted) {
+      query = query.is('deleted_at', null);
+    } else {
+      query = query.not('deleted_at', 'is', null);
+    }
+
     if (user.role === 'teacher') {
       const teacherId = await getTeacherIdForUser(user.userId);
       if (teacherId) {

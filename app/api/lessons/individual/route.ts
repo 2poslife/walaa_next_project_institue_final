@@ -31,7 +31,7 @@ export async function GET(request: NextRequest) {
       .select(`
         *,
         teacher:teachers(id, full_name, phone),
-        student:students(id, full_name, parent_contact),
+        student:students(id, full_name, parent_contact, education_level_id),
         education_level:education_levels(id, name_ar, name_en)
       `);
 
@@ -53,6 +53,14 @@ export async function GET(request: NextRequest) {
     }
     if (filters.approved !== undefined) {
       query = query.eq('approved', filters.approved);
+    }
+
+    // Handle deleted filter - if not explicitly requesting deleted, exclude them
+    const showDeleted = searchParams.get('show_deleted') === 'true';
+    if (!showDeleted) {
+      query = query.is('deleted_at', null);
+    } else {
+      query = query.not('deleted_at', 'is', null);
     }
 
     // Teachers can only see their own lessons

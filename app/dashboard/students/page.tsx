@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/Button';
 import { Table } from '@/components/ui/Table';
 import { Input } from '@/components/ui/Input';
 import { Select } from '@/components/ui/Select';
+import { Modal } from '@/components/ui/Modal';
 import { Student, EducationLevel } from '@/types';
 import { useAuth } from '@/contexts/AuthContext';
 
@@ -31,8 +32,13 @@ export default function StudentsPage() {
   const [filters, setFilters] = useState({
     search: '',
     education_level_id: '',
+    show_deleted: false,
   });
   const [submitting, setSubmitting] = useState(false);
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+  const [studentToDelete, setStudentToDelete] = useState<Student | null>(null);
+  const [deletionNote, setDeletionNote] = useState('');
+  const [deleting, setDeleting] = useState(false);
   const { isAuthenticated, loading: authLoading, isAdmin, isTeacher } = useAuth();
   const canManageStudents = isAdmin || isTeacher;
 
@@ -51,7 +57,7 @@ export default function StudentsPage() {
     setFieldErrors({});
     try {
       const [studentsRes, levelsRes] = await Promise.all([
-        api.getStudents(),
+        api.getStudents(filters.show_deleted),
         api.getEducationLevels(),
       ]);
 
@@ -136,6 +142,13 @@ export default function StudentsPage() {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    if (authLoading) {
+      return;
+    }
+    loadData();
+  }, [filters.show_deleted]);
 
   useEffect(() => {
     if (authLoading) {
@@ -262,20 +275,40 @@ export default function StudentsPage() {
     setShowForm(true);
   };
 
-  const handleDelete = async (id: number) => {
-    if (!confirm('هل أنت متأكد من حذف هذا الطالب؟')) {
+  const handleDelete = (student: Student) => {
+    if (!isAdmin) return;
+    setStudentToDelete(student);
+    setDeletionNote('');
+    setDeleteModalOpen(true);
+  };
+
+  const confirmDelete = async () => {
+    if (!studentToDelete) return;
+    
+    if (isAdmin && !deletionNote.trim()) {
+      alert('يرجى كتابة سبب الحذف');
       return;
     }
-
+    
+    setDeleting(true);
     try {
-      const response = await api.deleteStudent(id);
-      if (response.success) {
-        await loadData();
-      } else {
+      const note = deletionNote.trim() || undefined;
+      const response = await api.deleteStudent(studentToDelete.id, note);
+      
+      if (!response.success) {
         alert(response.error || 'فشل حذف الطالب');
+        return;
       }
-    } catch (err: any) {
-      alert(err.message || 'حدث خطأ');
+      
+      alert('تم حذف الطالب وجميع دروسه بنجاح');
+      setDeleteModalOpen(false);
+      setStudentToDelete(null);
+      setDeletionNote('');
+      await loadData();
+    } catch (error: any) {
+      alert(error.message || 'حدث خطأ أثناء حذف الطالب');
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -289,7 +322,15 @@ export default function StudentsPage() {
 
   const columns = [
     { key: 'id', header: 'الرقم' },
-    { key: 'full_name', header: 'الاسم الكامل' },
+    { 
+      key: 'full_name', 
+      header: 'الاسم الكامل',
+      render: (student: Student) => (
+        <span className={student.deleted_at ? 'text-red-600 line-through' : ''}>
+          {student.full_name}
+        </span>
+      ),
+    },
     {
       key: 'education_level',
       header: 'المستوى التعليمي',
@@ -302,6 +343,27 @@ export default function StudentsPage() {
     },
     { key: 'parent_contact', header: 'جهة اتصال ولي الأمر' },
   ];
+
+  // Add status column for admins
+  if (isAdmin) {
+    columns.push({
+      key: 'status',
+      header: 'الحالة',
+      render: (student: Student) => {
+        if (student.deleted_at) {
+          return <span className="text-red-600 font-semibold">محذوف</span>;
+        }
+        return <span className="text-green-600">نشط</span>;
+      },
+    });
+    
+    // Add deletion note column for admins
+    columns.push({
+      key: 'deletion_note',
+      header: 'سبب الحذف',
+      render: (student: Student) => student.deletion_note || '-',
+    });
+  }
 
   // Add teacher column for admins
   if (isAdmin) {
@@ -318,20 +380,27 @@ export default function StudentsPage() {
       header: 'الإجراءات',
       render: (student: Student) => (
         <div className="flex gap-2">
-          <Button
-            variant="secondary"
-            size="sm"
-            onClick={() => handleEdit(student)}
-          >
-            تعديل
-          </Button>
-          <Button
-            variant="danger"
-            size="sm"
-            onClick={() => handleDelete(student.id)}
-          >
-            حذف
-          </Button>
+          {!student.deleted_at && (
+            <>
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => handleEdit(student)}
+              >
+                تعديل
+              </Button>
+              <Button
+                variant="danger"
+                size="sm"
+                onClick={() => handleDelete(student)}
+              >
+                حذف
+              </Button>
+            </>
+          )}
+          {student.deleted_at && (
+            <span className="text-gray-500 text-sm">لا يمكن التعديل</span>
+          )}
         </div>
       ),
     });
@@ -505,6 +574,24 @@ export default function StudentsPage() {
               })),
             ]}
           />
+          {isAdmin && (
+            <div className="flex items-center">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={filters.show_deleted}
+                  onChange={(e) => {
+                    setFilters((prev) => ({
+                      ...prev,
+                      show_deleted: e.target.checked,
+                    }));
+                  }}
+                  className="w-4 h-4"
+                />
+                <span className="text-gray-700">إظهار الطلاب المحذوفين</span>
+              </label>
+            </div>
+          )}
           <div className="flex items-end">
             <Button
               type="button"
@@ -514,9 +601,10 @@ export default function StudentsPage() {
                 setFilters({
                   search: '',
                   education_level_id: '',
+                  show_deleted: false,
                 })
               }
-              disabled={!filters.search && !filters.education_level_id}
+              disabled={!filters.search && !filters.education_level_id && !filters.show_deleted}
             >
               مسح التصفية
             </Button>
@@ -531,6 +619,66 @@ export default function StudentsPage() {
           emptyMessage={filters.search || filters.education_level_id ? 'لا توجد نتائج مطابقة للتصفية' : 'لا يوجد طلاب'}
         />
       </Card>
+
+      <Modal
+        open={deleteModalOpen}
+        onClose={() => {
+          setDeleteModalOpen(false);
+          setStudentToDelete(null);
+          setDeletionNote('');
+        }}
+        ariaLabel="تأكيد حذف الطالب"
+      >
+        <Card title="تأكيد حذف الطالب">
+          <div className="space-y-4">
+            <p className="text-gray-700">
+              هل أنت متأكد من حذف الطالب <strong>{studentToDelete?.full_name}</strong>؟
+              <br />
+              سيتم حذف جميع دروس هذا الطالب أيضاً (فردية، جماعية، وعلاجية).
+              <br />
+              هذا الإجراء لا يمكن التراجع عنه.
+            </p>
+            
+            {isAdmin && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  سبب الحذف (مطلوب)
+                </label>
+                <textarea
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  rows={3}
+                  value={deletionNote}
+                  onChange={(e) => setDeletionNote(e.target.value)}
+                  placeholder="اكتب سبب الحذف هنا... (مثال: اسم الطالب خاطئ)"
+                  required
+                />
+              </div>
+            )}
+
+            <div className="flex gap-2 justify-end">
+              <Button
+                variant="secondary"
+                onClick={() => {
+                  setDeleteModalOpen(false);
+                  setStudentToDelete(null);
+                  setDeletionNote('');
+                }}
+                disabled={deleting}
+              >
+                إلغاء
+              </Button>
+              <Button
+                variant="danger"
+                onClick={confirmDelete}
+                isLoading={deleting}
+                disabled={isAdmin && !deletionNote.trim()}
+              >
+                حذف
+              </Button>
+            </div>
+          </div>
+        </Card>
+      </Modal>
     </div>
   );
 }

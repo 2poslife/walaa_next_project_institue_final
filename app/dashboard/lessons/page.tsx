@@ -27,6 +27,7 @@ const statusOptions = [
   { value: 'all', label: 'كل الحالات' },
   { value: 'pending', label: 'قيد الانتظار' },
   { value: 'approved', label: 'معتمد' },
+  { value: 'deleted', label: 'محذوف' },
 ];
 
 
@@ -36,7 +37,10 @@ export default function LessonsPage() {
   const canCreateLessons = isTeacher;
   const canApproveLessons = isAdmin;
 
-  const today = useMemo(() => new Date().toISOString().split('T')[0], []);
+  const today = useMemo(() => {
+    const date = new Date();
+    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+  }, []);
 
   const [activeTab, setActiveTab] = useState<LessonTab>('individual');
   const [loading, setLoading] = useState(true);
@@ -95,6 +99,15 @@ export default function LessonsPage() {
     education_level_id?: string;
   }>({});
   const [studentSubmitting, setStudentSubmitting] = useState(false);
+
+  // Delete confirmation modal state
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+  const [lessonToDelete, setLessonToDelete] = useState<{
+    type: 'individual' | 'group' | 'remedial';
+    lesson: IndividualLesson | GroupLesson | RemedialLesson;
+  } | null>(null);
+  const [deletionNote, setDeletionNote] = useState('');
+  const [deleting, setDeleting] = useState(false);
 
   const ITEMS_PER_PAGE = 15;
   const [individualPage, setIndividualPage] = useState(1);
@@ -200,11 +213,26 @@ export default function LessonsPage() {
     setLessonsError('');
     try {
       const dateFilters = getDateFilters(selectedYear, selectedMonth);
+      
+      // Add show_deleted parameter based on filter status
+      const individualParams = {
+        ...dateFilters,
+        ...(individualFilters.status === 'deleted' && { show_deleted: 'true' }),
+      };
+      const groupParams = {
+        ...dateFilters,
+        ...(groupFilters.status === 'deleted' && { show_deleted: 'true' }),
+      };
+      const remedialParams = {
+        ...dateFilters,
+        ...(remedialFilters.status === 'deleted' && { show_deleted: 'true' }),
+      };
+      
       const [individualRes, groupRes, remedialRes, studentsRes, levelsRes] =
         await Promise.all([
-          api.getIndividualLessons(dateFilters),
-          api.getGroupLessons(dateFilters),
-          api.getRemedialLessons(dateFilters),
+          api.getIndividualLessons(individualParams),
+          api.getGroupLessons(groupParams),
+          api.getRemedialLessons(remedialParams),
           api.getStudents(),
           api.getEducationLevels(),
         ]);
@@ -252,7 +280,7 @@ export default function LessonsPage() {
     } finally {
       setLoading(false);
     }
-  }, [isAdmin, teacher, selectedYear, selectedMonth]);
+  }, [isAdmin, teacher, selectedYear, selectedMonth, individualFilters.status, groupFilters.status, remedialFilters.status]);
 
   useEffect(() => {
     loadInitialData();
@@ -272,10 +300,25 @@ export default function LessonsPage() {
   const refreshLessons = async () => {
     try {
       const dateFilters = getDateFilters(selectedYear, selectedMonth);
+      
+      // Add show_deleted parameter based on filter status
+      const individualParams = {
+        ...dateFilters,
+        ...(individualFilters.status === 'deleted' && { show_deleted: 'true' }),
+      };
+      const groupParams = {
+        ...dateFilters,
+        ...(groupFilters.status === 'deleted' && { show_deleted: 'true' }),
+      };
+      const remedialParams = {
+        ...dateFilters,
+        ...(remedialFilters.status === 'deleted' && { show_deleted: 'true' }),
+      };
+      
       const [individualRes, groupRes, remedialRes] = await Promise.all([
-        api.getIndividualLessons(dateFilters),
-        api.getGroupLessons(dateFilters),
-        api.getRemedialLessons(dateFilters),
+        api.getIndividualLessons(individualParams),
+        api.getGroupLessons(groupParams),
+        api.getRemedialLessons(remedialParams),
       ]);
       if (individualRes.success && Array.isArray(individualRes.data)) {
         setIndividualLessons(individualRes.data as IndividualLesson[]);
@@ -363,8 +406,9 @@ export default function LessonsPage() {
         : true;
       const matchesStatus =
         individualFilters.status === 'all' ||
-        (individualFilters.status === 'pending' && !lesson.approved) ||
-        (individualFilters.status === 'approved' && lesson.approved);
+        (individualFilters.status === 'pending' && !lesson.approved && !lesson.deleted_at) ||
+        (individualFilters.status === 'approved' && lesson.approved && !lesson.deleted_at) ||
+        (individualFilters.status === 'deleted' && !!lesson.deleted_at);
       return matchesSearch && matchesStatus;
     });
   }, [individualLessons, individualFilters]);
@@ -386,8 +430,9 @@ export default function LessonsPage() {
         : true;
       const matchesStatus =
         groupFilters.status === 'all' ||
-        (groupFilters.status === 'pending' && !lesson.approved) ||
-        (groupFilters.status === 'approved' && lesson.approved);
+        (groupFilters.status === 'pending' && !lesson.approved && !lesson.deleted_at) ||
+        (groupFilters.status === 'approved' && lesson.approved && !lesson.deleted_at) ||
+        (groupFilters.status === 'deleted' && !!lesson.deleted_at);
       return matchesSearch && matchesStatus;
     });
   }, [groupLessons, groupFilters]);
@@ -417,8 +462,9 @@ export default function LessonsPage() {
         : true;
       const matchesStatus =
         remedialFilters.status === 'all' ||
-        (remedialFilters.status === 'pending' && !lesson.approved) ||
-        (remedialFilters.status === 'approved' && lesson.approved);
+        (remedialFilters.status === 'pending' && !lesson.approved && !lesson.deleted_at) ||
+        (remedialFilters.status === 'approved' && lesson.approved && !lesson.deleted_at) ||
+        (remedialFilters.status === 'deleted' && !!lesson.deleted_at);
       return matchesSearch && matchesStatus;
     });
   }, [remedialLessons, remedialFilters]);
@@ -426,6 +472,11 @@ export default function LessonsPage() {
   const handleOpenIndividualForm = (lesson?: IndividualLesson) => {
     if (!canCreateLessons) return;
     if (lesson) {
+      // Prevent editing deleted lessons
+      if (lesson.deleted_at) {
+        alert('لا يمكن تعديل درس محذوف');
+        return;
+      }
       setIndividualEditing(lesson);
       setIndividualForm({
         teacher_id:
@@ -455,6 +506,11 @@ export default function LessonsPage() {
   const handleOpenRemedialForm = (lesson?: RemedialLesson) => {
     if (!canCreateLessons) return;
     if (lesson) {
+      // Prevent editing deleted lessons
+      if (lesson.deleted_at) {
+        alert('لا يمكن تعديل درس محذوف');
+        return;
+      }
       setRemedialEditing(lesson);
       setRemedialForm({
         teacher_id:
@@ -557,6 +613,11 @@ export default function LessonsPage() {
   const handleOpenGroupForm = (lesson?: GroupLesson) => {
     if (!canCreateLessons) return;
     if (lesson) {
+      // Prevent editing deleted lessons
+      if (lesson.deleted_at) {
+        alert('لا يمكن تعديل درس محذوف');
+        return;
+      }
       setGroupEditing(lesson);
       setGroupForm({
         teacher_id:
@@ -750,59 +811,65 @@ export default function LessonsPage() {
     }
   };
 
-  const handleDeleteIndividual = async (lesson: IndividualLesson) => {
+  const handleDeleteIndividual = (lesson: IndividualLesson) => {
     if (!isTeacher && !isAdmin) return;
     if (lesson.approved && !isAdmin) return;
-    if (!confirm('هل تريد حذف هذا الدرس؟')) return;
+    setLessonToDelete({ type: 'individual', lesson });
+    setDeletionNote('');
+    setDeleteModalOpen(true);
+  };
+
+  const confirmDelete = async () => {
+    if (!lessonToDelete) return;
+    
+    setDeleting(true);
     try {
-      const response = await api.deleteIndividualLesson(lesson.id);
+      const note = isAdmin ? (deletionNote.trim() || undefined) : undefined;
+      let response;
+      
+      if (lessonToDelete.type === 'individual') {
+        response = await api.deleteIndividualLesson((lessonToDelete.lesson as IndividualLesson).id, note);
+      } else if (lessonToDelete.type === 'group') {
+        response = await api.deleteGroupLesson((lessonToDelete.lesson as GroupLesson).id, note);
+      } else {
+        response = await api.deleteRemedialLesson((lessonToDelete.lesson as RemedialLesson).id, note);
+      }
+      
       if (!response.success) {
         alert(response.error || 'فشل حذف الدرس');
         return;
       }
+      
       alert('تم حذف الدرس بنجاح');
+      setDeleteModalOpen(false);
+      setLessonToDelete(null);
+      setDeletionNote('');
       await refreshLessons();
     } catch (error: any) {
       alert(error.message || 'حدث خطأ أثناء حذف الدرس');
+    } finally {
+      setDeleting(false);
     }
   };
 
-  const handleDeleteGroup = async (lesson: GroupLesson) => {
+  const handleDeleteGroup = (lesson: GroupLesson) => {
     if (!isTeacher && !isAdmin) return;
     if (lesson.approved && !isAdmin) return;
-    if (!confirm('هل تريد حذف هذا الدرس الجماعي؟')) return;
-    try {
-      const response = await api.deleteGroupLesson(lesson.id);
-      if (!response.success) {
-        alert(response.error || 'فشل حذف الدرس');
-        return;
-      }
-      alert('تم حذف الدرس الجماعي بنجاح');
-      await refreshLessons();
-    } catch (error: any) {
-      alert(error.message || 'حدث خطأ أثناء حذف الدرس');
-    }
+    setLessonToDelete({ type: 'group', lesson });
+    setDeletionNote('');
+    setDeleteModalOpen(true);
   };
 
-  const handleDeleteRemedial = async (lesson: RemedialLesson) => {
+  const handleDeleteRemedial = (lesson: RemedialLesson) => {
     if (!isTeacher && !isAdmin) return;
     if (lesson.approved && !isAdmin) return;
-    if (!confirm('هل تريد حذف هذا الدرس العلاجي؟')) return;
-    try {
-      const response = await api.deleteRemedialLesson(lesson.id);
-      if (!response.success) {
-        alert(response.error || 'فشل حذف الدرس');
-        return;
-      }
-      alert('تم حذف الدرس العلاجي بنجاح');
-      await refreshLessons();
-    } catch (error: any) {
-      alert(error.message || 'حدث خطأ أثناء حذف الدرس');
-    }
+    setLessonToDelete({ type: 'remedial', lesson });
+    setDeletionNote('');
+    setDeleteModalOpen(true);
   };
 
   const handleApproveIndividual = async (lesson: IndividualLesson) => {
-    if (!isAdmin || lesson.approved) return;
+    if (!isAdmin || lesson.approved || lesson.deleted_at) return;
     try {
       const response = await api.approveIndividualLesson(lesson.id);
       if (!response.success) {
@@ -816,7 +883,7 @@ export default function LessonsPage() {
   };
 
   const handleApproveGroup = async (lesson: GroupLesson) => {
-    if (!isAdmin || lesson.approved) return;
+    if (!isAdmin || lesson.approved || lesson.deleted_at) return;
     try {
       const response = await api.approveGroupLesson(lesson.id);
       if (!response.success) {
@@ -830,7 +897,7 @@ export default function LessonsPage() {
   };
 
   const handleApproveRemedial = async (lesson: RemedialLesson) => {
-    if (!isAdmin || lesson.approved) return;
+    if (!isAdmin || lesson.approved || lesson.deleted_at) return;
     try {
       const response = await api.approveRemedialLesson(lesson.id);
       if (!response.success) {
@@ -1067,17 +1134,38 @@ export default function LessonsPage() {
     {
       key: 'approved',
       header: 'الحالة',
-      render: (lesson: IndividualLesson) => (
-        <span
-          className={`px-2 py-1 rounded-full text-xs ${
-            lesson.approved
-              ? 'bg-green-100 text-green-700'
-              : 'bg-yellow-100 text-yellow-700'
-          }`}
-        >
-          {lesson.approved ? 'معتمد' : 'قيد الانتظار'}
-        </span>
-      ),
+      render: (lesson: IndividualLesson) => {
+        if (lesson.deleted_at) {
+          return (
+            <span className="px-2 py-1 rounded-full text-xs bg-red-100 text-red-700">
+              محذوف
+            </span>
+          );
+        }
+        return (
+          <span
+            className={`px-2 py-1 rounded-full text-xs ${
+              lesson.approved
+                ? 'bg-green-100 text-green-700'
+                : 'bg-yellow-100 text-yellow-700'
+            }`}
+          >
+            {lesson.approved ? 'معتمد' : 'قيد الانتظار'}
+          </span>
+        );
+      },
+    },
+    {
+      key: 'deletion_note',
+      header: 'سبب الحذف',
+      render: (lesson: IndividualLesson) =>
+        lesson.deleted_at && lesson.deletion_note ? (
+          <span className="text-sm text-gray-600" title={lesson.deletion_note}>
+            {lesson.deletion_note}
+          </span>
+        ) : (
+          '-'
+        ),
     },
     ...((isTeacher || isAdmin)
       ? [
@@ -1085,10 +1173,11 @@ export default function LessonsPage() {
             key: 'actions',
             header: 'الإجراءات',
             render: (lesson: IndividualLesson) => {
-              const disableForTeacher = lesson.approved && !isAdmin;
+              const isDeleted = !!lesson.deleted_at;
+              const disableForTeacher = (lesson.approved && !isAdmin) || isDeleted;
               return (
                 <div className="flex gap-2 flex-wrap">
-                  {isAdmin && !lesson.approved && (
+                  {isAdmin && !lesson.approved && !isDeleted && (
                     <Button
                       size="sm"
                       onClick={() => handleApproveIndividual(lesson)}
@@ -1116,7 +1205,7 @@ export default function LessonsPage() {
                       </Button>
                     </>
                   )}
-                  {isAdmin && (
+                  {isAdmin && !isDeleted && (
                     <Button
                       size="sm"
                       variant="danger"
@@ -1176,17 +1265,38 @@ export default function LessonsPage() {
     {
       key: 'approved',
       header: 'الحالة',
-      render: (lesson: GroupLesson) => (
-        <span
-          className={`px-2 py-1 rounded-full text-xs ${
-            lesson.approved
-              ? 'bg-green-100 text-green-700'
-              : 'bg-yellow-100 text-yellow-700'
-          }`}
-        >
-          {lesson.approved ? 'معتمد' : 'قيد الانتظار'}
-        </span>
-      ),
+      render: (lesson: GroupLesson) => {
+        if (lesson.deleted_at) {
+          return (
+            <span className="px-2 py-1 rounded-full text-xs bg-red-100 text-red-700">
+              محذوف
+            </span>
+          );
+        }
+        return (
+          <span
+            className={`px-2 py-1 rounded-full text-xs ${
+              lesson.approved
+                ? 'bg-green-100 text-green-700'
+                : 'bg-yellow-100 text-yellow-700'
+            }`}
+          >
+            {lesson.approved ? 'معتمد' : 'قيد الانتظار'}
+          </span>
+        );
+      },
+    },
+    {
+      key: 'deletion_note',
+      header: 'سبب الحذف',
+      render: (lesson: GroupLesson) =>
+        lesson.deleted_at && lesson.deletion_note ? (
+          <span className="text-sm text-gray-600" title={lesson.deletion_note}>
+            {lesson.deletion_note}
+          </span>
+        ) : (
+          '-'
+        ),
     },
     ...((isTeacher || isAdmin)
       ? [
@@ -1194,10 +1304,11 @@ export default function LessonsPage() {
             key: 'actions',
             header: 'الإجراءات',
             render: (lesson: GroupLesson) => {
-              const disableForTeacher = lesson.approved && !isAdmin;
+              const isDeleted = !!lesson.deleted_at;
+              const disableForTeacher = (lesson.approved && !isAdmin) || isDeleted;
               return (
                 <div className="flex gap-2 flex-wrap">
-                  {isAdmin && !lesson.approved && (
+                  {isAdmin && !lesson.approved && !isDeleted && (
                     <Button
                       size="sm"
                       onClick={() => handleApproveGroup(lesson)}
@@ -1225,7 +1336,7 @@ export default function LessonsPage() {
                       </Button>
                     </>
                   )}
-                  {isAdmin && (
+                  {isAdmin && !isDeleted && (
                     <Button
                       size="sm"
                       variant="danger"
@@ -1957,23 +2068,44 @@ export default function LessonsPage() {
               {
                 key: 'approved',
                 header: 'الحالة',
-                render: (lesson: RemedialLesson) =>
-                  lesson.approved ? (
+                render: (lesson: RemedialLesson) => {
+                  if (lesson.deleted_at) {
+                    return (
+                      <span className="px-2 py-1 rounded-full text-xs bg-red-100 text-red-700">
+                        محذوف
+                      </span>
+                    );
+                  }
+                  return lesson.approved ? (
                     <span className="text-green-600 font-semibold">معتمد</span>
                   ) : (
                     <span className="text-orange-600 font-semibold">
                       قيد الانتظار
                     </span>
+                  );
+                },
+              },
+              {
+                key: 'deletion_note',
+                header: 'سبب الحذف',
+                render: (lesson: RemedialLesson) =>
+                  lesson.deleted_at && lesson.deletion_note ? (
+                    <span className="text-sm text-gray-600" title={lesson.deletion_note}>
+                      {lesson.deletion_note}
+                    </span>
+                  ) : (
+                    '-'
                   ),
               },
               {
                 key: 'actions',
                 header: 'الإجراءات',
                 render: (lesson: RemedialLesson) => {
-                  const disableForTeacher = lesson.approved && !isAdmin;
+                  const isDeleted = !!lesson.deleted_at;
+                  const disableForTeacher = (lesson.approved && !isAdmin) || isDeleted;
                   return (
                     <div className="flex gap-2 flex-wrap">
-                      {isAdmin && !lesson.approved && (
+                      {isAdmin && !lesson.approved && !isDeleted && (
                         <Button
                           size="sm"
                           onClick={() => handleApproveRemedial(lesson)}
@@ -2271,6 +2403,61 @@ export default function LessonsPage() {
               </Button>
             </div>
           </form>
+        </Card>
+      </Modal>
+
+      {/* Delete Confirmation Modal */}
+      <Modal
+        open={deleteModalOpen}
+        onClose={() => {
+          setDeleteModalOpen(false);
+          setLessonToDelete(null);
+          setDeletionNote('');
+        }}
+        ariaLabel="تأكيد الحذف"
+      >
+        <Card title="تأكيد الحذف">
+          <div className="space-y-4">
+            <p className="text-gray-700">
+              هل أنت متأكد من حذف هذا الدرس؟ هذا الإجراء لا يمكن التراجع عنه.
+            </p>
+            
+            {isAdmin && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  سبب الحذف (اختياري)
+                </label>
+                <textarea
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  rows={3}
+                  value={deletionNote}
+                  onChange={(e) => setDeletionNote(e.target.value)}
+                  placeholder="اكتب سبب الحذف هنا..."
+                />
+              </div>
+            )}
+
+            <div className="flex gap-2 justify-end">
+              <Button
+                variant="secondary"
+                onClick={() => {
+                  setDeleteModalOpen(false);
+                  setLessonToDelete(null);
+                  setDeletionNote('');
+                }}
+                disabled={deleting}
+              >
+                إلغاء
+              </Button>
+              <Button
+                variant="danger"
+                onClick={confirmDelete}
+                isLoading={deleting}
+              >
+                حذف
+              </Button>
+            </div>
+          </div>
         </Card>
       </Modal>
     </div>

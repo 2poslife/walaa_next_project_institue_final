@@ -345,8 +345,9 @@ export const api = {
   },
 
   // Students
-  async getStudents() {
-    return apiRequest(API_ROUTES.STUDENTS.BASE);
+  async getStudents(showDeleted?: boolean) {
+    const url = showDeleted ? `${API_ROUTES.STUDENTS.BASE}?show_deleted=true` : API_ROUTES.STUDENTS.BASE;
+    return apiRequest(url);
   },
 
   async getStudent(id: number) {
@@ -367,9 +368,10 @@ export const api = {
     });
   },
 
-  async deleteStudent(id: number) {
+  async deleteStudent(id: number, deletionNote?: string) {
     return apiRequest(API_ROUTES.STUDENTS.BY_ID(id), {
       method: 'DELETE',
+      body: JSON.stringify({ deletion_note: deletionNote || null }),
     });
   },
 
@@ -401,9 +403,10 @@ export const api = {
     });
   },
 
-  async deleteIndividualLesson(id: number) {
+  async deleteIndividualLesson(id: number, deletionNote?: string) {
     return apiRequest(API_ROUTES.LESSONS.INDIVIDUAL.BY_ID(id), {
       method: 'DELETE',
+      body: deletionNote ? JSON.stringify({ deletion_note: deletionNote }) : undefined,
     });
   },
 
@@ -492,9 +495,10 @@ export const api = {
     });
   },
 
-  async deleteRemedialLesson(id: number) {
+  async deleteRemedialLesson(id: number, deletionNote?: string) {
     return apiRequest(API_ROUTES.LESSONS.REMEDIAL.BY_ID(id), {
       method: 'DELETE',
+      body: deletionNote ? JSON.stringify({ deletion_note: deletionNote }) : undefined,
     });
   },
 

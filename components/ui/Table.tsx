@@ -33,7 +33,7 @@ export function Table<T extends Record<string, any>>({
             {columns.map((column) => (
               <th
                 key={column.key}
-                className="px-6 py-4 text-right text-lg font-semibold text-gray-600"
+                className="px-6 py-4 text-right text-lg font-semibold text-gray-600 min-w-[120px]"
               >
                 {column.header}
               </th>
@@ -48,7 +48,7 @@ export function Table<T extends Record<string, any>>({
               className={onRowClick ? 'cursor-pointer hover:bg-gray-50' : ''}
             >
               {columns.map((column) => (
-                <td key={column.key} className="px-6 py-4 whitespace-nowrap text-lg text-gray-900">
+                <td key={column.key} className="px-6 py-4 text-lg text-gray-900 min-w-[120px]">
                   {column.render ? column.render(item, index) : item[column.key]}
                 </td>
               ))}

@@ -37,6 +37,8 @@ export interface Student {
   education_level_id: number | null;
   class?: string | null; // Class/grade (e.g., 'أول', 'ثاني', 'ثالث', etc.)
   created_by_teacher_id?: number | null;
+  deleted_at?: string | null; // Soft delete timestamp
+  deletion_note?: string | null; // Admin note explaining why student was deleted
   education_level?: EducationLevel;
   created_by_teacher?: {
     id: number;
@@ -63,6 +65,8 @@ export interface IndividualLesson {
   approved: boolean;
   total_cost: number | null;
   price_locked?: boolean;
+  deleted_at?: string | null; // Soft delete timestamp
+  deletion_note?: string | null; // Admin note explaining why lesson was deleted
   created_at: string;
   teacher?: Teacher;
   student?: Student;
@@ -79,6 +83,8 @@ export interface GroupLesson {
   approved: boolean;
   total_cost: number | null;
   price_locked?: boolean;
+  deleted_at?: string | null; // Soft delete timestamp
+  deletion_note?: string | null; // Admin note explaining why lesson was deleted
   created_at: string;
   teacher?: Teacher;
   education_level?: EducationLevel;
@@ -95,6 +101,8 @@ export interface RemedialLesson {
   approved: boolean;
   total_cost: number | null;
   price_locked?: boolean;
+  deleted_at?: string | null; // Soft delete timestamp
+  deletion_note?: string | null; // Admin note explaining why lesson was deleted
   created_at: string;
   teacher?: Teacher;
   student?: Student;

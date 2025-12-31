@@ -40,6 +40,11 @@ export async function PUT(
       return notFoundResponse('Lesson not found');
     }
 
+    // Cannot update deleted lessons
+    if (lesson.deleted_at) {
+      return errorResponse('Cannot update deleted lessons');
+    }
+
     if (lesson.approved) {
       return errorResponse('Cannot update approved lessons');
     }
@@ -112,15 +117,22 @@ export async function DELETE(
     }
 
     const lessonId = parseInt(params.id, 10);
+    const body = await request.json().catch(() => ({}));
+    const { deletion_note } = body;
 
     const { data: lesson, error: lessonError } = await supabaseAdmin
       .from('individual_lessons')
-      .select('id, teacher_id, approved')
+      .select('id, teacher_id, approved, deleted_at')
       .eq('id', lessonId)
       .single();
 
     if (lessonError || !lesson) {
       return notFoundResponse('Lesson not found');
+    }
+
+    // Check if already deleted
+    if (lesson.deleted_at) {
+      return errorResponse('Lesson is already deleted');
     }
 
     if (lesson.approved) {
@@ -134,9 +146,19 @@ export async function DELETE(
       }
     }
 
+    // Soft delete: set deleted_at timestamp and optional deletion note
+    const updateData: { deleted_at: string; deletion_note?: string | null } = {
+      deleted_at: new Date().toISOString(),
+    };
+    
+    // Only admins can add deletion notes
+    if ((user.role === 'admin' || user.role === 'subAdmin') && deletion_note) {
+      updateData.deletion_note = deletion_note;
+    }
+
     const { error: deleteError } = await supabaseAdmin
       .from('individual_lessons')
-      .delete()
+      .update(updateData)
       .eq('id', lessonId);
 
     if (deleteError) {

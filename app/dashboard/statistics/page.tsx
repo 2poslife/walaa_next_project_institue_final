@@ -10,6 +10,7 @@ import { api } from '@/lib/api-client';
 import { IndividualLesson, GroupLesson, RemedialLesson } from '@/types';
 import { useAuth } from '@/contexts/AuthContext';
 import { downloadCSV, formatDateForFilename, LessonExportRow } from '@/lib/utils/export';
+import { formatLocalDate } from '@/lib/utils/date';
 
 interface PastLesson {
   id: string;
@@ -105,11 +106,13 @@ export default function StatisticsPage() {
   }, [authLoading, isTeacher, isAdmin, statsYear, statsMonth]);
 
   const getDateFilters = (year: number, month: string) => {
+    // Use local date formatting to avoid timezone issues
     const start = new Date(year, Number(month) - 1, 1);
     const end = new Date(year, Number(month), 0);
+    
     return {
-      date_from: start.toISOString().split('T')[0],
-      date_to: end.toISOString().split('T')[0],
+      date_from: formatLocalDate(start),
+      date_to: formatLocalDate(end),
     };
   };
 
@@ -558,6 +561,47 @@ export default function StatisticsPage() {
     downloadCSV(prepareExportData, filename);
   };
 
+  const handleExportStudentStatsCSV = () => {
+    if (filteredStudentStats.length === 0) {
+      alert('لا توجد بيانات للتصدير');
+      return;
+    }
+
+    // Convert student stats to CSV format
+    const headers = ['الطالب', 'دروس فردية', 'ساعات فردية', 'دروس جماعية', 'ساعات جماعية', 'הוראה מתקנת', 'ساعات הוראה מתקנת', 'إجمالي الساعات'];
+    const rows = filteredStudentStats.map((stat) => [
+      stat.studentName,
+      stat.individualLessons.toString(),
+      formatHours(stat.individualHours),
+      stat.groupLessons.toString(),
+      formatHours(stat.groupHours),
+      stat.remedialLessons.toString(),
+      formatHours(stat.remedialHours),
+      formatHours(stat.individualHours + stat.groupHours + stat.remedialHours),
+    ]);
+
+    const csvContent = [
+      headers.join(','),
+      ...rows.map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(',')),
+    ].join('\n');
+
+    // Add BOM for UTF-8 to ensure Excel displays Arabic correctly
+    const csvWithBOM = '\uFEFF' + csvContent;
+    const blob = new Blob([csvWithBOM], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    
+    const monthName = statsMonths.find(m => m.value === statsMonth)?.label || statsMonth;
+    const filename = `student_stats_${statsYear}_${monthName}.csv`;
+    link.setAttribute('download', filename);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
 
   if (authLoading || loading) {
     return (
@@ -595,10 +639,16 @@ export default function StatisticsPage() {
           `${row.groupLessons} درس (${formatHours(row.groupHours)} ساعة)`,
       },
       {
+        key: 'remedialLessons',
+        header: 'הוראה מתקנת',
+        render: (row) =>
+          `${row.remedialLessons} درس (${formatHours(row.remedialHours)} ساعة)`,
+      },
+      {
         key: 'total',
         header: 'الإجمالي',
         render: (row) =>
-          `${formatHours(row.individualHours + row.groupHours)} ساعة`,
+          `${formatHours(row.individualHours + row.groupHours + row.remedialHours)} ساعة`,
       },
     ];
 
@@ -649,7 +699,32 @@ export default function StatisticsPage() {
           )}
         </Card>
 
-        <Card title="إحصائيات الطلاب">
+        <Card 
+          title="إحصائيات الطلاب"
+          actions={
+            <button
+              onClick={handleExportStudentStatsCSV}
+              className="p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded transition-colors"
+              title="تصدير إلى CSV"
+              aria-label="تصدير إلى CSV"
+            >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                className="h-5 w-5"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                />
+              </svg>
+            </button>
+          }
+        >
           {filteredStudentStats.length === 0 ? (
             <p className="text-gray-500">لا توجد بيانات مطابقة للتصفية الحالية</p>
           ) : (

@@ -7,6 +7,7 @@ import { NextRequest } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
 import { getUserFromRequest } from '@/lib/utils/get-user-from-request';
 import { successResponse, errorResponse, unauthorizedResponse } from '@/lib/utils/api-response';
+import { getTodayLocalDate } from '@/lib/utils/date';
 
 export async function GET(request: NextRequest) {
   try {
@@ -62,7 +63,7 @@ export async function POST(request: NextRequest) {
       .insert({
         student_id,
         amount: parseFloat(amount),
-        payment_date: payment_date || new Date().toISOString().split('T')[0],
+        payment_date: payment_date || getTodayLocalDate(),
         note: note || null,
       })
       .select()
