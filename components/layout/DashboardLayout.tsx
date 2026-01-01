@@ -68,8 +68,8 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
             onClick={closeSidebar}
             aria-hidden="true"
           />
-          <div className="ml-auto relative h-full w-64">
-            <Sidebar isMobile onClose={closeSidebar} className="min-h-full" />
+          <div className="ml-auto relative h-full w-64 flex flex-col">
+            <Sidebar isMobile onClose={closeSidebar} className="h-full" />
           </div>
         </div>
       )}

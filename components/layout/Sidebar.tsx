@@ -41,8 +41,8 @@ export function Sidebar({ isMobile = false, onClose, className = '' }: SidebarPr
   }, [isMobile, onClose]);
 
   return (
-    <div className={`w-64 bg-gray-800 text-white min-h-screen relative flex flex-col ${className}`}>
-      <div className="p-6 flex items-center justify-between">
+    <div className={`w-64 bg-gray-800 text-white ${isMobile ? 'h-full' : 'min-h-screen'} relative flex flex-col ${className}`}>
+      <div className="p-6 flex items-center justify-between flex-shrink-0">
         <h2 className="text-xl font-bold">Institute Management</h2>
         {isMobile && (
           <button
@@ -54,7 +54,7 @@ export function Sidebar({ isMobile = false, onClose, className = '' }: SidebarPr
           </button>
         )}
       </div>
-      <nav className="mt-8">
+      <nav className="mt-8 flex-1 overflow-y-auto">
         {filteredNav.map((item) => {
           const isActive = pathname === item.href;
           return (
@@ -72,10 +72,10 @@ export function Sidebar({ isMobile = false, onClose, className = '' }: SidebarPr
           );
         })}
       </nav>
-      <div className="mt-auto w-full p-6">
+      <div className="mt-auto w-full p-6 flex-shrink-0">
         <button
           onClick={logout}
-          className="w-full px-4 py-2 bg-red-600 hover:bg-red-700 rounded-lg text-white"
+          className="w-full px-4 py-2 bg-red-600 hover:bg-red-700 rounded-lg text-white font-medium"
         >
           Logout
         </button>
