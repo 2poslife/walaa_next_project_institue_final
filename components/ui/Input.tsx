@@ -9,18 +9,30 @@ export function Input({ label, error, className = '', ...props }: InputProps) {
   return (
     <div className="w-full">
       {label && (
-        <label className="block text-lg font-medium text-gray-900 mb-1">
+        <label className="block text-base font-semibold text-gray-700 mb-2">
           {label}
         </label>
       )}
       <input
-        className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-orange text-gray-900 text-lg ${
-          error ? 'border-red-500' : 'border-gray-300'
-        } ${className}`}
+        className={`
+          w-full px-4 py-3 border-2 rounded-xl 
+          focus:outline-none focus:ring-2 focus:ring-offset-2 
+          text-gray-900 text-base font-medium
+          transition-all duration-300
+          bg-white/80 backdrop-blur-sm
+          ${error 
+            ? 'border-red-400 focus:border-red-500 focus:ring-red-500' 
+            : 'border-gray-300 focus:border-orange-500 focus:ring-orange-500 hover:border-gray-400'
+          } 
+          ${className}
+        `}
         {...props}
       />
       {error && (
-        <p className="mt-1 text-base text-red-600">{error}</p>
+        <p className="mt-2 text-sm font-medium text-red-600 flex items-center gap-1">
+          <span>⚠️</span>
+          {error}
+        </p>
       )}
     </div>
   );

@@ -32,52 +32,63 @@ export default function LoginPage() {
 
   return (
     <PublicLayout>
-      <div className="min-h-screen flex items-center justify-center bg-gray-50 py-16" dir="rtl">
-        <div className="max-w-md w-full bg-white rounded-lg shadow-lg p-8">
-          <h1 className="text-3xl font-bold text-center mb-6">
-            <span className="text-brand-orange">مركز</span>{' '}
-            <span className="text-brand-green">تميز</span>
-          </h1>
-          <h2 className="text-xl font-semibold text-center mb-8 text-gray-900">
-            تسجيل الدخول
-          </h2>
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-50 via-orange-50/30 to-gray-50 py-16 relative overflow-hidden" dir="rtl">
+        {/* Decorative Elements */}
+        <div className="absolute top-20 right-20 w-64 h-64 bg-orange-500/10 rounded-full blur-3xl"></div>
+        <div className="absolute bottom-20 left-20 w-80 h-80 bg-green-500/10 rounded-full blur-3xl"></div>
+        <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-orange-500/5 rounded-full blur-3xl"></div>
 
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <Input
-              label="اسم المستخدم"
-              type="text"
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              required
-              autoFocus
-            />
-
-            <Input
-              label="كلمة المرور"
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-            />
-
-            {error && (
-              <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">
-                {error}
+        <div className="w-full max-w-7xl mx-auto px-4 relative z-10">
+          {/* Login Card - Centered */}
+          <div className="flex justify-center">
+            <div className="w-full max-w-md bg-white/95 backdrop-blur-sm rounded-2xl shadow-2xl p-8 border border-gray-200/50">
+              <div className="text-center mb-8">
+                <h1 className="text-4xl font-bold mb-2">
+                  <span className="text-brand-orange">مركز</span>{' '}
+                  <span className="text-brand-green">تميز</span>
+                </h1>
+                <h2 className="text-xl font-semibold text-gray-700">
+                  تسجيل الدخول
+                </h2>
               </div>
-            )}
 
-            <Button
-              type="submit"
-              className="w-full"
-              isLoading={isLoading}
-              disabled={!username || !password}
-            >
-              تسجيل الدخول
-            </Button>
-          </form>
+              <form onSubmit={handleSubmit} className="space-y-6">
+                <Input
+                  label="اسم المستخدم"
+                  type="text"
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
+                  required
+                  autoFocus
+                />
+
+                <Input
+                  label="كلمة المرور"
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                />
+
+                {error && (
+                  <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
+                    {error}
+                  </div>
+                )}
+
+                <Button
+                  type="submit"
+                  className="w-full"
+                  isLoading={isLoading}
+                  disabled={!username || !password}
+                >
+                  تسجيل الدخول
+                </Button>
+              </form>
+            </div>
+          </div>
         </div>
       </div>
     </PublicLayout>
   );
 }
-

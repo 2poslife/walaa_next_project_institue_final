@@ -70,3 +70,5 @@ If "جامعي" still doesn't appear after running the migration:
 3. **Verify the migration ran** - Use the verification queries above
 4. **Check API response** - Go to Network tab and check `/api/education-levels` response
 
+
+

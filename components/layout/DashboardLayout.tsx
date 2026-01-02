@@ -56,36 +56,45 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
   const closeSidebar = () => setSidebarOpen(false);
 
   return (
-    <div className="flex min-h-screen bg-gray-100" dir="rtl">
+    <div className="flex min-h-screen bg-gradient-to-br from-gray-50 via-blue-50/30 to-purple-50/30" dir="rtl">
       <div className="hidden lg:block">
         <Sidebar />
       </div>
 
       {isSidebarOpen && (
-        <div className="fixed inset-0 z-40 flex lg:hidden">
+        <div className="fixed inset-0 z-40 flex lg:hidden animate-fadeIn">
           <div
-            className="absolute inset-0 bg-black/50"
+            className="absolute inset-0 bg-black/60 backdrop-blur-sm"
             onClick={closeSidebar}
             aria-hidden="true"
           />
-          <div className="ml-auto relative h-full w-64 flex flex-col">
+          <div className="ml-auto relative h-full w-64 flex flex-col animate-slideIn">
             <Sidebar isMobile onClose={closeSidebar} className="h-full" />
           </div>
         </div>
       )}
 
-      <main className="flex-1 p-4 sm:p-6 lg:p-8">
-        <div className="flex items-center justify-between mb-4 lg:hidden">
+      <main className="flex-1 p-4 sm:p-6 lg:p-8 relative">
+        {/* Decorative background elements */}
+        <div className="fixed top-0 left-0 w-96 h-96 bg-gradient-to-br from-blue-400/10 to-purple-400/10 rounded-full blur-3xl -z-10"></div>
+        <div className="fixed bottom-0 right-0 w-96 h-96 bg-gradient-to-tl from-orange-400/10 to-pink-400/10 rounded-full blur-3xl -z-10"></div>
+        
+        <div className="flex items-center justify-between mb-6 lg:hidden">
           <Button
             type="button"
             variant="outline"
             className="flex items-center gap-2"
             onClick={openSidebar}
           >
-            ☰ القائمة
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+            </svg>
+            القائمة
           </Button>
         </div>
-        {children}
+        <div className="relative z-10">
+          {children}
+        </div>
       </main>
     </div>
   );

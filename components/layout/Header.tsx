@@ -5,62 +5,97 @@ import { useEffect, useState } from 'react';
 import { usePathname } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/Button';
+import Image from 'next/image';
 
 export function Header() {
   const pathname = usePathname();
   const { isAuthenticated, logout, user } = useAuth();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [scrolled, setScrolled] = useState(false);
 
   useEffect(() => {
     // Close the mobile menu when route changes
     setMobileOpen(false);
   }, [pathname]);
 
+  useEffect(() => {
+    const handleScroll = () => {
+      setScrolled(window.scrollY > 20);
+    };
+    window.addEventListener('scroll', handleScroll);
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
+
   const isActive = (path: string) => pathname === path;
 
   return (
-    <header className="bg-white shadow-md sticky top-0 z-50" dir="rtl">
+    <header className={`bg-white/80 backdrop-blur-lg shadow-lg sticky top-0 z-50 border-b border-gray-200/50 transition-all duration-300 ${scrolled ? 'bg-white/95 shadow-xl' : ''}`} dir="rtl">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between items-center h-16">
           {/* Logo */}
-          <div className="flex items-center">
-            <Link href="/" className="text-2xl font-bold">
-              <span className="text-brand-orange">مركز</span>{' '}
-              <span className="text-brand-green">تميز</span>
+          <div className="flex items-center gap-3">
+            <Link href="/" className="flex items-center gap-3 group">
+              <div className="relative w-16 h-16 flex items-center justify-center">
+                <Image 
+                  src="/log2.png" 
+                  alt="مركز تميز" 
+                  width={64}
+                  height={64}
+                  className="w-full h-full object-contain group-hover:scale-110 transition-transform"
+                  priority
+                  unoptimized
+                />
+              </div>
+              <div>
+                <div className="text-2xl font-extrabold">
+                  <span className="bg-gradient-to-r from-orange-600 to-orange-700 bg-clip-text text-transparent">مركز</span>
+                  {' '}
+                  <span className="bg-gradient-to-r from-green-600 to-emerald-700 bg-clip-text text-transparent">تميز</span>
+                </div>
+              </div>
             </Link>
           </div>
 
           {/* Navigation (desktop) */}
-          <nav className="hidden md:flex gap-8">
+          <nav className="hidden md:flex gap-2">
             <Link
               href="/"
-              className={`px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+              className={`px-4 py-2 rounded-xl text-sm font-semibold transition-all duration-300 relative ${
                 isActive('/')
-                  ? 'text-brand-orange bg-orange-50'
-                  : 'text-gray-700 hover:text-brand-orange hover:bg-gray-50'
+                  ? 'text-orange-600'
+                  : 'text-gray-700 hover:text-orange-600'
               }`}
             >
               الرئيسية
+              {isActive('/') && (
+                <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-orange-600 rounded-full"></span>
+              )}
             </Link>
             <Link
               href="/about"
-              className={`px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+              className={`px-4 py-2 rounded-xl text-sm font-semibold transition-all duration-300 relative ${
                 isActive('/about')
-                  ? 'text-brand-orange bg-orange-50'
-                  : 'text-gray-700 hover:text-brand-orange hover:bg-gray-50'
+                  ? 'text-orange-600'
+                  : 'text-gray-700 hover:text-orange-600'
               }`}
             >
               من نحن
+              {isActive('/about') && (
+                <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-orange-600 rounded-full"></span>
+              )}
             </Link>
             <Link
               href="/contact"
-              className={`px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+              className={`px-4 py-2 rounded-xl text-sm font-semibold transition-all duration-300 relative ${
                 isActive('/contact')
-                  ? 'text-brand-orange bg-orange-50'
-                  : 'text-gray-700 hover:text-brand-orange hover:bg-gray-50'
+                  ? 'text-orange-600'
+                  : 'text-gray-700 hover:text-orange-600'
               }`}
             >
               اتصل بنا
+              {isActive('/contact') && (
+                <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-orange-600 rounded-full"></span>
+              )}
             </Link>
           </nav>
 
