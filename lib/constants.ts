@@ -24,6 +24,7 @@ export const EDUCATION_LEVELS = {
   ELEMENTARY: 'ابتدائي',
   MIDDLE: 'إعدادي',
   SECONDARY: 'ثانوي',
+  UNIVERSITY: 'جامعي',
 } as const;
 
 // Approval Status

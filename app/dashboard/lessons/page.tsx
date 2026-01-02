@@ -286,6 +286,23 @@ export default function LessonsPage() {
     loadInitialData();
   }, [loadInitialData]);
 
+  // Reload education levels when individual form opens to ensure fresh data
+  useEffect(() => {
+    if (individualFormOpen && educationLevels.length > 0) {
+      const refreshLevels = async () => {
+        try {
+          const levelsRes = await api.getEducationLevels();
+          if (levelsRes.success && Array.isArray(levelsRes.data)) {
+            setEducationLevels(levelsRes.data as EducationLevel[]);
+          }
+        } catch (error) {
+          console.error('Error refreshing education levels:', error);
+        }
+      };
+      refreshLevels();
+    }
+  }, [individualFormOpen]);
+
   const refreshStudents = async () => {
     try {
       const studentsRes = await api.getStudents();
@@ -1782,10 +1799,12 @@ export default function LessonsPage() {
                   }}
                   options={[
                     { value: '', label: 'اختر المستوى التعليمي' },
-                    ...educationLevels.map((level) => ({
-                      value: level.id,
-                      label: level.name_ar,
-                    })),
+                    ...educationLevels
+                      .filter((level) => level.name_ar !== 'جامعي') // Exclude جامعي from group lessons
+                      .map((level) => ({
+                        value: level.id,
+                        label: level.name_ar,
+                      })),
                   ]}
                   required
                 />

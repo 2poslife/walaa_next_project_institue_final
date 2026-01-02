@@ -7,7 +7,7 @@ import { Select } from '@/components/ui/Select';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
 import { api } from '@/lib/api-client';
-import { IndividualLesson, GroupLesson, RemedialLesson } from '@/types';
+import { IndividualLesson, GroupLesson, RemedialLesson, EducationLevel } from '@/types';
 import { useAuth } from '@/contexts/AuthContext';
 import { downloadCSV, formatDateForFilename, LessonExportRow } from '@/lib/utils/export';
 import { formatLocalDate } from '@/lib/utils/date';
@@ -70,6 +70,7 @@ export default function StatisticsPage() {
   const [individualLessons, setIndividualLessons] = useState<IndividualLesson[]>([]);
   const [groupLessons, setGroupLessons] = useState<GroupLesson[]>([]);
   const [remedialLessons, setRemedialLessons] = useState<RemedialLesson[]>([]);
+  const [educationLevels, setEducationLevels] = useState<EducationLevel[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const statsYears = [2025, 2026];
@@ -121,10 +122,11 @@ export default function StatisticsPage() {
     setError('');
     try {
       const dateFilters = getDateFilters(statsYear, statsMonth);
-      const [individualRes, groupRes, remedialRes] = await Promise.all([
+      const [individualRes, groupRes, remedialRes, levelsRes] = await Promise.all([
         api.getIndividualLessons(dateFilters),
         api.getGroupLessons(dateFilters),
         api.getRemedialLessons(dateFilters),
+        api.getEducationLevels(),
       ]);
 
       if (individualRes.success && Array.isArray(individualRes.data)) {
@@ -143,6 +145,13 @@ export default function StatisticsPage() {
         setRemedialLessons(remedialRes.data as RemedialLesson[]);
       } else {
         setError((prev) => prev || remedialRes.error || 'فشل في تحميل הוראה מתקנת');
+      }
+
+      if (levelsRes.success && Array.isArray(levelsRes.data)) {
+        console.log('Education levels loaded in statistics:', levelsRes.data);
+        setEducationLevels(levelsRes.data as EducationLevel[]);
+      } else {
+        console.error('Failed to load education levels in statistics:', levelsRes);
       }
     } catch (err: any) {
       setError(err.message || 'حدث خطأ أثناء تحميل الإحصائيات');
@@ -288,7 +297,10 @@ export default function StatisticsPage() {
       return { rows: [] as TeacherLevelRow[], levels: [] as string[] };
     }
 
-    const levelSet = new Set<string>();
+    // Start with all education levels from the database
+    const allLevelNames = educationLevels.map((level) => level.name_ar).filter(Boolean);
+    console.log('Education levels in adminTeacherStats:', allLevelNames);
+    const levelSet = new Set<string>(allLevelNames);
     const teacherMap = new Map<
       number | null,
       {
@@ -358,7 +370,11 @@ export default function StatisticsPage() {
 
     groupLessons.forEach((lesson) => {
       if (lesson.approved) {
-        addLesson(lesson, 'group');
+        // Skip group lessons for "جامعي" level (not available for group lessons)
+        const levelName = lesson.education_level?.name_ar;
+        if (levelName !== 'جامعي') {
+          addLesson(lesson, 'group');
+        }
       }
     });
 
@@ -405,7 +421,7 @@ export default function StatisticsPage() {
       .sort((a, b) => a.teacherName.localeCompare(b.teacherName, 'ar'));
 
     return { rows, levels };
-  }, [individualLessons, groupLessons, remedialLessons, showAdminView]);
+  }, [individualLessons, groupLessons, remedialLessons, showAdminView, educationLevels]);
 
   const adminStudentStats = useMemo<StudentStat[]>(() => {
     if (!showAdminView) return [];
@@ -477,11 +493,14 @@ export default function StatisticsPage() {
         header: `${level} فردي`,
         render: (row) => row[`${level}-individual`] as string,
       });
-      columns.push({
-        key: `${level}-group`,
-        header: `${level} جماعي`,
-        render: (row) => row[`${level}-group`] as string,
-      });
+      // Only add group column if the level is not "جامعي" (university level doesn't have group lessons)
+      if (level !== 'جامعي') {
+        columns.push({
+          key: `${level}-group`,
+          header: `${level} جماعي`,
+          render: (row) => row[`${level}-group`] as string,
+        });
+      }
     });
     // Add remedial column (it doesn't have education level)
     columns.push({
