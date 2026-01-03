@@ -21,6 +21,7 @@ interface StudentPaymentSummary {
   levelName: string;
   individualDue: number;
   groupDue: number;
+  remedialDue: number;
   totalDue: number;
   totalPaid: number;
   remaining: number;
@@ -46,6 +47,7 @@ export default function PaymentsPage() {
   });
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [autoCompletingPayment, setAutoCompletingPayment] = useState<number | null>(null);
   const [summarySearch, setSummarySearch] = useState('');
   const [paymentSearch, setPaymentSearch] = useState('');
   const [exportModalOpen, setExportModalOpen] = useState(false);
@@ -208,6 +210,39 @@ export default function PaymentsPage() {
     }
   };
 
+  const handleAutoCompletePayment = async (studentId: number) => {
+    const summary = summaryByStudent.get(studentId);
+    if (!summary || summary.remaining <= 0) {
+      alert('لا يوجد مبلغ متبقٍ لهذا الطالب');
+      return;
+    }
+
+    if (!confirm(`هل تريد إنشاء دفعة تلقائية بمبلغ ${formatCurrency(summary.remaining)} للطالب ${summary.studentName}؟`)) {
+      return;
+    }
+
+    setAutoCompletingPayment(studentId);
+    try {
+      const response = await api.createPayment({
+        student_id: studentId,
+        amount: summary.remaining,
+        payment_date: getTodayLocalDate(),
+        note: 'دفع تلقائي',
+      });
+
+      if (response.success) {
+        alert(`تم إنشاء دفعة تلقائية بمبلغ ${formatCurrency(summary.remaining)} بنجاح`);
+        await loadData();
+      } else {
+        alert(response.error || 'فشل إنشاء الدفعة التلقائية');
+      }
+    } catch (err: any) {
+      alert(err.message || 'حدث خطأ أثناء إنشاء الدفعة التلقائية');
+    } finally {
+      setAutoCompletingPayment(null);
+    }
+  };
+
   const resetForm = () => {
     setFormData({
       student_id: '',
@@ -277,6 +312,7 @@ export default function PaymentsPage() {
           levelName,
           individualDue: 0,
           groupDue: 0,
+          remedialDue: 0,
           totalDue: 0,
           totalPaid: 0,
           remaining: 0,
@@ -338,6 +374,18 @@ export default function PaymentsPage() {
       });
     });
 
+    remedialLessons.forEach((lesson) => {
+      if (!lesson.approved || !lesson.student_id) return;
+      const cost = Number(lesson.total_cost) || 0;
+      if (cost <= 0) return;
+      const entry = ensureEntry(
+        lesson.student_id,
+        lesson.student?.full_name || `طالب ${lesson.student_id}`,
+        lesson.student?.education_level?.name_ar || 'غير محدد'
+      );
+      entry.remedialDue += cost;
+    });
+
     payments.forEach((payment) => {
       if (!payment.student_id) return;
       const entry = ensureEntry(
@@ -349,7 +397,7 @@ export default function PaymentsPage() {
     });
 
     return Array.from(map.values()).map((entry) => {
-      const totalDue = entry.individualDue + entry.groupDue;
+      const totalDue = entry.individualDue + entry.groupDue + entry.remedialDue;
       const remaining = totalDue - entry.totalPaid;
       return {
         ...entry,
@@ -357,7 +405,7 @@ export default function PaymentsPage() {
         remaining,
       };
     });
-  }, [students, individualLessons, groupLessons, payments, groupPricingTiers]);
+  }, [students, individualLessons, groupLessons, remedialLessons, payments, groupPricingTiers]);
 
   const filteredSummaries = useMemo(() => {
     if (!summarySearch.trim()) {
@@ -530,6 +578,11 @@ export default function PaymentsPage() {
       render: (row: StudentPaymentSummary) => formatCurrency(row.groupDue),
     },
     {
+      key: 'remedialDue',
+      header: 'הוראה מתקנת',
+      render: (row: StudentPaymentSummary) => formatCurrency(row.remedialDue),
+    },
+    {
       key: 'totalDue',
       header: 'إجمالي المستحق',
       render: (row: StudentPaymentSummary) => formatCurrency(row.totalDue),
@@ -548,6 +601,26 @@ export default function PaymentsPage() {
         </span>
       ),
     },
+    ...(isAdmin
+      ? [
+          {
+            key: 'autoComplete',
+            header: 'دفع تلقائي',
+            render: (row: StudentPaymentSummary) => (
+              <Button
+                size="sm"
+                variant="primary"
+                onClick={() => handleAutoCompletePayment(row.studentId)}
+                disabled={row.remaining <= 0 || autoCompletingPayment === row.studentId}
+                isLoading={autoCompletingPayment === row.studentId}
+                title={row.remaining > 0 ? `إنشاء دفعة تلقائية بمبلغ ${formatCurrency(row.remaining)}` : 'لا يوجد مبلغ متبقٍ'}
+              >
+                ✓ دفع كامل
+              </Button>
+            ),
+          },
+        ]
+      : []),
   ];
 
   const summaryByStudent = useMemo(() => {

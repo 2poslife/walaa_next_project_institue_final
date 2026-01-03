@@ -83,6 +83,7 @@ export default function LessonsPage() {
   const [remedialSubmitting, setRemedialSubmitting] = useState(false);
   const [bulkApprovingIndividual, setBulkApprovingIndividual] = useState(false);
   const [bulkApprovingGroup, setBulkApprovingGroup] = useState(false);
+  const [bulkApprovingRemedial, setBulkApprovingRemedial] = useState(false);
 
   // Student modal state
   const [studentModalOpen, setStudentModalOpen] = useState(false);
@@ -485,6 +486,11 @@ export default function LessonsPage() {
       return matchesSearch && matchesStatus;
     });
   }, [remedialLessons, remedialFilters]);
+
+  const filteredPendingRemedialLessons = useMemo(
+    () => filteredRemedialLessons.filter((lesson) => !lesson.approved && !lesson.deleted_at),
+    [filteredRemedialLessons]
+  );
 
   const handleOpenIndividualForm = (lesson?: IndividualLesson) => {
     if (!canCreateLessons) return;
@@ -994,6 +1000,41 @@ export default function LessonsPage() {
       alert(error.message || 'حدث خطأ أثناء اعتماد الدروس');
     } finally {
       setBulkApprovingGroup(false);
+    }
+  };
+
+  const handleBulkApproveRemedial = async () => {
+    if (!isAdmin) return;
+    
+    // Get only the filtered pending lessons
+    const lessonsToApprove = filteredPendingRemedialLessons;
+    
+    if (lessonsToApprove.length === 0) {
+      alert('لا توجد دروس للاعتماد في الفلترة الحالية');
+      return;
+    }
+    
+    setBulkApprovingRemedial(true);
+    try {
+      // Approve all filtered pending lessons
+      const approvePromises = lessonsToApprove.map((lesson) =>
+        api.approveRemedialLesson(lesson.id)
+      );
+      
+      const results = await Promise.all(approvePromises);
+      const failed = results.filter((r) => !r.success);
+      
+      if (failed.length > 0) {
+        alert(`فشل اعتماد ${failed.length} من ${lessonsToApprove.length} درس`);
+      } else {
+        alert(`تم اعتماد ${lessonsToApprove.length} درس بنجاح`);
+      }
+      
+      await refreshLessons();
+    } catch (error: any) {
+      alert(error.message || 'حدث خطأ أثناء اعتماد الدروس');
+    } finally {
+      setBulkApprovingRemedial(false);
     }
   };
 
@@ -2043,6 +2084,20 @@ export default function LessonsPage() {
               />
             </div>
           </Card>
+
+          {isAdmin && filteredPendingRemedialLessons.length > 0 && (
+            <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
+              <p className="text-sm text-gray-600">
+                يوجد {filteredPendingRemedialLessons.length} درس علاجي بانتظار الاعتماد
+              </p>
+              <Button
+                onClick={handleBulkApproveRemedial}
+                isLoading={bulkApprovingRemedial}
+              >
+                اعتماد جميع الدروس العلاجية المفلترة
+              </Button>
+            </div>
+          )}
 
           {canCreateLessons && (
             <div className="mb-6">
