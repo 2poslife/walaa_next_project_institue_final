@@ -134,7 +134,6 @@ export default function HomePage() {
 
         <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center animate-fadeIn">
               <h1 className="text-6xl md:text-7xl lg:text-8xl font-extrabold mb-6 leading-tight">
-                <span className="block text-white drop-shadow-2xl mb-2">مرحباً بك في</span>
                 <span className="block">
                   <span className="text-orange-500 drop-shadow-2xl relative inline-block">
                     <span className="relative z-10">مركز</span>
@@ -143,14 +142,18 @@ export default function HomePage() {
                   </span>
                   {' '}
                   <span className="text-green-500 drop-shadow-lg relative inline-block">
-                    <span className="relative z-10">تميز</span>
+                    <span className="relative z-10">تَمَيَّز</span>
                     <span className="absolute bottom-0 left-0 right-0 h-1 bg-green-500/30 blur-sm"></span>
+                  </span>
+                  <span className="text-white drop-shadow-lg mx-2">–</span>
+                  <span className="text-white drop-shadow-lg relative inline-block">
+                    <span className="relative z-10">الرينة</span>
                   </span>
                 </span>
               </h1>
               
               <p className="text-2xl md:text-3xl mb-12 text-white/90 font-normal max-w-3xl mx-auto leading-loose">
-                نظام متكامل لإدارة شؤون المعهد وتنظيم العمل التعليمي
+                لأن التميّز مش صدفة… التميّز قرار
               </p>
               
               <div className="flex flex-col sm:flex-row justify-center gap-6 items-center mb-16">

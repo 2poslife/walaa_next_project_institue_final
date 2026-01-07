@@ -416,6 +416,18 @@ export const api = {
     });
   },
 
+  async unapproveIndividualLesson(id: number) {
+    return apiRequest(API_ROUTES.LESSONS.INDIVIDUAL.UNAPPROVE(id), {
+      method: 'POST',
+    });
+  },
+
+  async restoreIndividualLesson(id: number) {
+    return apiRequest(API_ROUTES.LESSONS.INDIVIDUAL.RESTORE(id), {
+      method: 'POST',
+    });
+  },
+
   async approveAllIndividualLessons() {
     return apiRequest(API_ROUTES.LESSONS.INDIVIDUAL.BULK_APPROVE, {
       method: 'POST',
@@ -458,6 +470,18 @@ export const api = {
 
   async approveGroupLesson(id: number) {
     return apiRequest(API_ROUTES.LESSONS.GROUP.APPROVE(id), {
+      method: 'POST',
+    });
+  },
+
+  async unapproveGroupLesson(id: number) {
+    return apiRequest(API_ROUTES.LESSONS.GROUP.UNAPPROVE(id), {
+      method: 'POST',
+    });
+  },
+
+  async restoreGroupLesson(id: number) {
+    return apiRequest(API_ROUTES.LESSONS.GROUP.RESTORE(id), {
       method: 'POST',
     });
   },
@@ -505,6 +529,18 @@ export const api = {
 
   async approveRemedialLesson(id: number) {
     return apiRequest(API_ROUTES.LESSONS.REMEDIAL.APPROVE(id), {
+      method: 'POST',
+    });
+  },
+
+  async unapproveRemedialLesson(id: number) {
+    return apiRequest(API_ROUTES.LESSONS.REMEDIAL.UNAPPROVE(id), {
+      method: 'POST',
+    });
+  },
+
+  async restoreRemedialLesson(id: number) {
+    return apiRequest(API_ROUTES.LESSONS.REMEDIAL.RESTORE(id), {
       method: 'POST',
     });
   },
@@ -567,6 +603,20 @@ export const api = {
   // Education Levels
   async getEducationLevels() {
     return apiRequest('/api/education-levels');
+  },
+
+  // Settings
+  async getSettings() {
+    return apiRequest(API_ROUTES.SETTINGS.BASE, {
+      method: 'GET',
+    });
+  },
+
+  async updateSetting(key: string, value: boolean | string) {
+    return apiRequest(API_ROUTES.SETTINGS.BASE, {
+      method: 'PUT',
+      body: JSON.stringify({ key, value }),
+    });
   },
 };
 

@@ -32,6 +32,7 @@ export default function StudentsPage() {
   const [filters, setFilters] = useState({
     search: '',
     education_level_id: '',
+    status: 'all', // 'all', 'active', 'deleted'
     show_deleted: false,
   });
   const [submitting, setSubmitting] = useState(false);
@@ -41,6 +42,26 @@ export default function StudentsPage() {
   const [deleting, setDeleting] = useState(false);
   const { isAuthenticated, loading: authLoading, isAdmin, isTeacher } = useAuth();
   const canManageStudents = isAdmin || isTeacher;
+  const [teachersCanAddStudents, setTeachersCanAddStudents] = useState(true);
+
+  useEffect(() => {
+    if (isTeacher && !isAdmin) {
+      // Load settings to check if teachers can add students
+      api.getSettings()
+        .then((response) => {
+          if (response.success && response.data) {
+            setTeachersCanAddStudents(response.data.teachers_can_add_students ?? true);
+          }
+        })
+        .catch(() => {
+          // Default to true if error
+          setTeachersCanAddStudents(true);
+        });
+    } else {
+      // Admins can always add students
+      setTeachersCanAddStudents(true);
+    }
+  }, [isTeacher, isAdmin]);
 
   const loadData = async () => {
     // Check if we have a token before making the request
@@ -326,7 +347,7 @@ export default function StudentsPage() {
       key: 'full_name', 
       header: 'الاسم الكامل',
       render: (student: Student) => (
-        <span className={student.deleted_at ? 'text-red-600 line-through' : ''}>
+        <span className={student.deleted_at ? 'text-red-600' : ''}>
           {student.full_name}
         </span>
       ),
@@ -414,7 +435,11 @@ export default function StudentsPage() {
     const matchesLevel =
       !filters.education_level_id ||
       student.education_level_id === Number(filters.education_level_id);
-    return matchesSearch && matchesLevel;
+    const matchesStatus =
+      filters.status === 'all' ||
+      (filters.status === 'active' && !student.deleted_at) ||
+      (filters.status === 'deleted' && !!student.deleted_at);
+    return matchesSearch && matchesLevel && matchesStatus;
   });
 
   if (loading || authLoading) {
@@ -425,7 +450,7 @@ export default function StudentsPage() {
     <div dir="rtl" className="space-y-6">
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-3xl font-bold text-gray-900">الطلاب</h1>
-        {canManageStudents && !showForm && (
+        {canManageStudents && !showForm && (isAdmin || teachersCanAddStudents) && (
           <Button onClick={() => setShowForm(true)}>
             إضافة طالب جديد
           </Button>
@@ -574,41 +599,40 @@ export default function StudentsPage() {
               })),
             ]}
           />
-          {isAdmin && (
-            <div className="flex items-center">
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={filters.show_deleted}
-                  onChange={(e) => {
-                    setFilters((prev) => ({
-                      ...prev,
-                      show_deleted: e.target.checked,
-                    }));
-                  }}
-                  className="w-4 h-4"
-                />
-                <span className="text-gray-700">إظهار الطلاب المحذوفين</span>
-              </label>
-            </div>
-          )}
-          <div className="flex items-end">
-            <Button
-              type="button"
-              variant="secondary"
-              className="w-full"
-              onClick={() =>
-                setFilters({
-                  search: '',
-                  education_level_id: '',
-                  show_deleted: false,
-                })
-              }
-              disabled={!filters.search && !filters.education_level_id && !filters.show_deleted}
-            >
-              مسح التصفية
-            </Button>
-          </div>
+          <Select
+            label="الحالة"
+            value={filters.status}
+            onChange={(e) =>
+              setFilters((prev) => ({
+                ...prev,
+                status: e.target.value,
+                // Auto-update show_deleted when status changes
+                show_deleted: e.target.value === 'deleted' || e.target.value === 'all',
+              }))
+            }
+            options={[
+              { value: 'all', label: 'الكل' },
+              { value: 'active', label: 'نشط' },
+              { value: 'deleted', label: 'محذوف' },
+            ]}
+          />
+        </div>
+        <div className="mt-4">
+          <Button
+            type="button"
+            variant="secondary"
+            onClick={() =>
+              setFilters({
+                search: '',
+                education_level_id: '',
+                status: 'all',
+                show_deleted: false,
+              })
+            }
+            disabled={!filters.search && !filters.education_level_id && filters.status === 'all' && !filters.show_deleted}
+          >
+            مسح التصفية
+          </Button>
         </div>
       </Card>
 

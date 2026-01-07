@@ -19,6 +19,7 @@ const navigation: NavItem[] = [
   { name: 'Teachers', href: '/dashboard/teachers', icon: '👨‍🏫', adminOnly: true },
   { name: 'Payments', href: '/dashboard/payments', icon: '💰', adminOnly: true },
   { name: 'Pricing', href: '/dashboard/pricing', icon: '💵', adminOnly: true },
+  { name: 'Settings', href: '/dashboard/settings', icon: '⚙️', adminOnly: true },
   { name: 'Profile', href: '/dashboard/profile', icon: '👤' },
 ];
 

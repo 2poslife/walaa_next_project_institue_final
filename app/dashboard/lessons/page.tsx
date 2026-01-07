@@ -36,6 +36,7 @@ export default function LessonsPage() {
   const { isTeacher, isAdmin, teacher } = useAuth();
   const canCreateLessons = isTeacher;
   const canApproveLessons = isAdmin;
+  const [teachersCanAddStudents, setTeachersCanAddStudents] = useState(true);
 
   const today = useMemo(() => {
     const date = new Date();
@@ -84,6 +85,27 @@ export default function LessonsPage() {
   const [bulkApprovingIndividual, setBulkApprovingIndividual] = useState(false);
   const [bulkApprovingGroup, setBulkApprovingGroup] = useState(false);
   const [bulkApprovingRemedial, setBulkApprovingRemedial] = useState(false);
+
+  // Respect admin setting: whether teachers are allowed to add students
+  useEffect(() => {
+    if (isTeacher && !isAdmin) {
+      api
+        .getSettings()
+        .then((response) => {
+          if (response.success && response.data) {
+            const settings = response.data as { teachers_can_add_students?: boolean };
+            setTeachersCanAddStudents(settings.teachers_can_add_students ?? true);
+          }
+        })
+        .catch(() => {
+          // Default to true on error to avoid blocking
+          setTeachersCanAddStudents(true);
+        });
+    } else {
+      // Admins can always add students
+      setTeachersCanAddStudents(true);
+    }
+  }, [isTeacher, isAdmin]);
 
   // Student modal state
   const [studentModalOpen, setStudentModalOpen] = useState(false);
@@ -933,6 +955,114 @@ export default function LessonsPage() {
     }
   };
 
+  const handleUnapproveIndividual = async (lesson: IndividualLesson) => {
+    if (!isAdmin || !lesson.approved || lesson.deleted_at) return;
+    if (!confirm('هل تريد إلغاء اعتماد هذا الدرس؟ يمكنك بعد ذلك تعديله أو حذفه.')) {
+      return;
+    }
+    try {
+      const response = await api.unapproveIndividualLesson(lesson.id);
+      if (!response.success) {
+        alert(response.error || 'فشل إلغاء اعتماد الدرس');
+        return;
+      }
+      alert('تم إلغاء اعتماد الدرس بنجاح. يمكنك الآن تعديله أو حذفه.');
+      await refreshLessons();
+    } catch (error: any) {
+      alert(error.message || 'حدث خطأ أثناء إلغاء اعتماد الدرس');
+    }
+  };
+
+  const handleUnapproveGroup = async (lesson: GroupLesson) => {
+    if (!isAdmin || !lesson.approved || lesson.deleted_at) return;
+    if (!confirm('هل تريد إلغاء اعتماد هذا الدرس؟ يمكنك بعد ذلك تعديله أو حذفه.')) {
+      return;
+    }
+    try {
+      const response = await api.unapproveGroupLesson(lesson.id);
+      if (!response.success) {
+        alert(response.error || 'فشل إلغاء اعتماد الدرس');
+        return;
+      }
+      alert('تم إلغاء اعتماد الدرس بنجاح. يمكنك الآن تعديله أو حذفه.');
+      await refreshLessons();
+    } catch (error: any) {
+      alert(error.message || 'حدث خطأ أثناء إلغاء اعتماد الدرس');
+    }
+  };
+
+  const handleUnapproveRemedial = async (lesson: RemedialLesson) => {
+    if (!isAdmin || !lesson.approved || lesson.deleted_at) return;
+    if (!confirm('هل تريد إلغاء اعتماد هذا الدرس؟ يمكنك بعد ذلك تعديله أو حذفه.')) {
+      return;
+    }
+    try {
+      const response = await api.unapproveRemedialLesson(lesson.id);
+      if (!response.success) {
+        alert(response.error || 'فشل إلغاء اعتماد الدرس');
+        return;
+      }
+      alert('تم إلغاء اعتماد الدرس بنجاح. يمكنك الآن تعديله أو حذفه.');
+      await refreshLessons();
+    } catch (error: any) {
+      alert(error.message || 'حدث خطأ أثناء إلغاء اعتماد الدرس');
+    }
+  };
+
+  const handleRestoreIndividual = async (lesson: IndividualLesson) => {
+    if (!isAdmin || !lesson.deleted_at) return;
+    if (!confirm('هل تريد استعادة هذا الدرس المحذوف؟')) {
+      return;
+    }
+    try {
+      const response = await api.restoreIndividualLesson(lesson.id);
+      if (!response.success) {
+        alert(response.error || 'فشل استعادة الدرس');
+        return;
+      }
+      alert('تم استعادة الدرس بنجاح');
+      await refreshLessons();
+    } catch (error: any) {
+      alert(error.message || 'حدث خطأ أثناء استعادة الدرس');
+    }
+  };
+
+  const handleRestoreGroup = async (lesson: GroupLesson) => {
+    if (!isAdmin || !lesson.deleted_at) return;
+    if (!confirm('هل تريد استعادة هذا الدرس المحذوف؟')) {
+      return;
+    }
+    try {
+      const response = await api.restoreGroupLesson(lesson.id);
+      if (!response.success) {
+        alert(response.error || 'فشل استعادة الدرس');
+        return;
+      }
+      alert('تم استعادة الدرس بنجاح');
+      await refreshLessons();
+    } catch (error: any) {
+      alert(error.message || 'حدث خطأ أثناء استعادة الدرس');
+    }
+  };
+
+  const handleRestoreRemedial = async (lesson: RemedialLesson) => {
+    if (!isAdmin || !lesson.deleted_at) return;
+    if (!confirm('هل تريد استعادة هذا الدرس المحذوف؟')) {
+      return;
+    }
+    try {
+      const response = await api.restoreRemedialLesson(lesson.id);
+      if (!response.success) {
+        alert(response.error || 'فشل استعادة الدرس');
+        return;
+      }
+      alert('تم استعادة الدرس بنجاح');
+      await refreshLessons();
+    } catch (error: any) {
+      alert(error.message || 'حدث خطأ أثناء استعادة الدرس');
+    }
+  };
+
   const handleBulkApproveIndividual = async () => {
     if (!isAdmin) return;
     
@@ -1066,7 +1196,9 @@ export default function LessonsPage() {
     })
     .map((student) => ({
       value: student.id,
-      label: student.full_name,
+      label: student.class 
+        ? `${student.full_name} - ${student.class}` 
+        : student.full_name,
     }));
 
   const availableGroupStudentOptions = sortedStudents
@@ -1085,7 +1217,9 @@ export default function LessonsPage() {
     })
     .map((student) => ({
       value: student.id,
-      label: student.full_name,
+      label: student.class 
+        ? `${student.full_name} - ${student.class}` 
+        : student.full_name,
     }));
 
   const selectedGroupStudents = groupForm.studentIds
@@ -1243,6 +1377,15 @@ export default function LessonsPage() {
                       اعتماد
                     </Button>
                   )}
+                  {isAdmin && lesson.approved && !isDeleted && (
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      onClick={() => handleUnapproveIndividual(lesson)}
+                    >
+                      إلغاء الاعتماد
+                    </Button>
+                  )}
                   {isTeacher && (
                     <>
                       <Button
@@ -1271,6 +1414,15 @@ export default function LessonsPage() {
                       disabled={lesson.approved}
                     >
                       رفض
+                    </Button>
+                  )}
+                  {isAdmin && isDeleted && (
+                    <Button
+                      size="sm"
+                      variant="primary"
+                      onClick={() => handleRestoreIndividual(lesson)}
+                    >
+                      استعادة
                     </Button>
                   )}
                 </div>
@@ -1374,6 +1526,15 @@ export default function LessonsPage() {
                       اعتماد
                     </Button>
                   )}
+                  {isAdmin && lesson.approved && !isDeleted && (
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      onClick={() => handleUnapproveGroup(lesson)}
+                    >
+                      إلغاء الاعتماد
+                    </Button>
+                  )}
                   {isTeacher && (
                     <>
                       <Button
@@ -1402,6 +1563,15 @@ export default function LessonsPage() {
                       disabled={lesson.approved}
                     >
                       رفض
+                    </Button>
+                  )}
+                  {isAdmin && isDeleted && (
+                    <Button
+                      size="sm"
+                      variant="primary"
+                      onClick={() => handleRestoreGroup(lesson)}
+                    >
+                      استعادة
                     </Button>
                   )}
                 </div>
@@ -1582,15 +1752,17 @@ export default function LessonsPage() {
                   placeholder="اختر الطالب"
                   required
                 />
-                <div className="text-sm">
-                  <button
-                    type="button"
-                    onClick={() => setStudentModalOpen(true)}
-                    className="text-blue-600 hover:text-blue-800 underline"
-                  >
-                    إضافة طالب جديد
-                  </button>
-                </div>
+                {(isAdmin || teachersCanAddStudents) && (
+                  <div className="text-sm">
+                    <button
+                      type="button"
+                      onClick={() => setStudentModalOpen(true)}
+                      className="text-blue-600 hover:text-blue-800 underline"
+                    >
+                      إضافة طالب جديد
+                    </button>
+                  </div>
+                )}
 
                 <Select
                   label="المستوى التعليمي"
@@ -1925,13 +2097,15 @@ export default function LessonsPage() {
                           placeholder="اكتب اسم الطالب للبحث"
                           disabled={availableGroupStudentOptions.length === 0}
                         />
-                        <Button
-                          type="button"
-                          onClick={() => setStudentModalOpen(true)}
-                          variant="secondary"
-                        >
-                          إضافة طالب جديد
-                        </Button>
+                        {(isAdmin || teachersCanAddStudents) && (
+                          <Button
+                            type="button"
+                            onClick={() => setStudentModalOpen(true)}
+                            variant="secondary"
+                          >
+                            إضافة طالب جديد
+                          </Button>
+                        )}
                       </div>
                       {availableGroupStudentOptions.length === 0 && (
                         <p className="text-sm text-gray-600 mt-2">
@@ -2187,6 +2361,15 @@ export default function LessonsPage() {
                           اعتماد
                         </Button>
                       )}
+                      {isAdmin && lesson.approved && !isDeleted && (
+                        <Button
+                          size="sm"
+                          variant="secondary"
+                          onClick={() => handleUnapproveRemedial(lesson)}
+                        >
+                          إلغاء الاعتماد
+                        </Button>
+                      )}
                       {isTeacher && (
                         <>
                           <Button
@@ -2206,6 +2389,15 @@ export default function LessonsPage() {
                             حذف
                           </Button>
                         </>
+                      )}
+                      {isAdmin && isDeleted && (
+                        <Button
+                          size="sm"
+                          variant="primary"
+                          onClick={() => handleRestoreRemedial(lesson)}
+                        >
+                          استعادة
+                        </Button>
                       )}
                     </div>
                   );
@@ -2292,18 +2484,22 @@ export default function LessonsPage() {
                   }
                   options={sortedStudents.map((s) => ({
                     value: s.id.toString(),
-                    label: s.full_name,
+                    label: s.class 
+                      ? `${s.full_name} - ${s.class}` 
+                      : s.full_name,
                   }))}
                 />
-                <div className="text-sm">
-                  <button
-                    type="button"
-                    onClick={() => setStudentModalOpen(true)}
-                    className="text-blue-600 hover:text-blue-800 underline"
-                  >
-                    إضافة طالب جديد
-                  </button>
-                </div>
+                {(isAdmin || teachersCanAddStudents) && (
+                  <div className="text-sm">
+                    <button
+                      type="button"
+                      onClick={() => setStudentModalOpen(true)}
+                      className="text-blue-600 hover:text-blue-800 underline"
+                    >
+                      إضافة طالب جديد
+                    </button>
+                  </div>
+                )}
 
                 <Input
                   label="تاريخ الدرس"

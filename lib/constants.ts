@@ -60,18 +60,24 @@ export const API_ROUTES = {
       BASE: '/api/lessons/individual',
       BY_ID: (id: number) => `/api/lessons/individual/${id}`,
       APPROVE: (id: number) => `/api/lessons/individual/${id}/approve`,
+      UNAPPROVE: (id: number) => `/api/lessons/individual/${id}/unapprove`,
+      RESTORE: (id: number) => `/api/lessons/individual/${id}/restore`,
       BULK_APPROVE: '/api/lessons/individual/bulk-approve',
     },
     GROUP: {
       BASE: '/api/lessons/group',
       BY_ID: (id: number) => `/api/lessons/group/${id}`,
       APPROVE: (id: number) => `/api/lessons/group/${id}/approve`,
+      UNAPPROVE: (id: number) => `/api/lessons/group/${id}/unapprove`,
+      RESTORE: (id: number) => `/api/lessons/group/${id}/restore`,
       BULK_APPROVE: '/api/lessons/group/bulk-approve',
     },
     REMEDIAL: {
       BASE: '/api/lessons/remedial',
       BY_ID: (id: number) => `/api/lessons/remedial/${id}`,
       APPROVE: (id: number) => `/api/lessons/remedial/${id}/approve`,
+      UNAPPROVE: (id: number) => `/api/lessons/remedial/${id}/unapprove`,
+      RESTORE: (id: number) => `/api/lessons/remedial/${id}/restore`,
     },
   },
   PAYMENTS: {
@@ -94,6 +100,9 @@ export const API_ROUTES = {
   },
   REPORTS: {
     EXPORT_PDF: '/api/reports/export-pdf',
+  },
+  SETTINGS: {
+    BASE: '/api/settings',
   },
 } as const;
 

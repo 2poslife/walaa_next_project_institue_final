@@ -21,6 +21,7 @@ const protectedRoutes = [
   '/api/education-levels',
   '/api/profile',
   '/api/group-pricing-tiers',
+  '/api/settings',
 ];
 
 // Routes that require admin role
@@ -31,6 +32,8 @@ const adminRoutes = [
   '/api/statistics',
   '/api/reports',
   '/api/group-pricing-tiers',
+  // NOTE: /api/settings GET is allowed for all authenticated users (returns limited settings for teachers).
+  // Admin enforcement for updates happens inside the route handler (PUT).
 ];
 
 // Public routes (no authentication required)

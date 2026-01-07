@@ -82,6 +82,19 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // Check if teachers can add students (if user is a teacher)
+    if (user.role === 'teacher') {
+      const { data: setting } = await supabaseAdmin
+        .from('app_settings')
+        .select('value')
+        .eq('key', 'teachers_can_add_students')
+        .single();
+
+      if (!setting || setting.value !== 'true') {
+        return errorResponse('غير مسموح للمعلمين بإضافة طلاب جدد. يرجى اختيار طالب موجود.');
+      }
+    }
+
     // Get teacher_id if the user is a teacher
     let created_by_teacher_id: number | null = null;
     if (user.role === 'teacher') {
