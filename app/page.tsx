@@ -145,7 +145,10 @@ export default function HomePage() {
                     <span className="relative z-10">تَمَيَّز</span>
                     <span className="absolute bottom-0 left-0 right-0 h-1 bg-green-500/30 blur-sm"></span>
                   </span>
-                  <span className="text-white drop-shadow-lg mx-2">–</span>
+                  <span className="text-gray-400 drop-shadow-lg mx-2 relative inline-block">
+                    <span className="relative z-10">–</span>
+                    <span className="absolute bottom-0 left-0 right-0 h-1 bg-gray-400/30 blur-sm"></span>
+                  </span>
                   <span className="text-white drop-shadow-lg relative inline-block">
                     <span className="relative z-10">الرينة</span>
                   </span>

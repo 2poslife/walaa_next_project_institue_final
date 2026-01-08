@@ -50,7 +50,8 @@ export default function StudentsPage() {
       api.getSettings()
         .then((response) => {
           if (response.success && response.data) {
-            setTeachersCanAddStudents(response.data.teachers_can_add_students ?? true);
+            const settings = response.data as any;
+            setTeachersCanAddStudents(settings?.teachers_can_add_students ?? true);
           }
         })
         .catch(() => {
