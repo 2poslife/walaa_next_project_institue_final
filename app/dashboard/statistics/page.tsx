@@ -6,11 +6,12 @@ import { Table, TableColumn } from '@/components/ui/Table';
 import { Select } from '@/components/ui/Select';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
+import { Modal } from '@/components/ui/Modal';
 import { api } from '@/lib/api-client';
-import { IndividualLesson, GroupLesson, RemedialLesson, EducationLevel } from '@/types';
+import { IndividualLesson, GroupLesson, RemedialLesson, EducationLevel, Teacher } from '@/types';
 import { useAuth } from '@/contexts/AuthContext';
 import { downloadCSV, formatDateForFilename, LessonExportRow } from '@/lib/utils/export';
-import { formatLocalDate } from '@/lib/utils/date';
+import { formatLocalDate, getFirstDayOfMonth, getLastDayOfMonth } from '@/lib/utils/date';
 
 interface PastLesson {
   id: string;
@@ -95,6 +96,12 @@ export default function StatisticsPage() {
   );
   const [statsMonth, setStatsMonth] = useState(currentMonth);
   const [adminSearch, setAdminSearch] = useState('');
+  const [teachers, setTeachers] = useState<Teacher[]>([]);
+  const [teacherExportModalOpen, setTeacherExportModalOpen] = useState(false);
+  const [selectedTeacherForExport, setSelectedTeacherForExport] = useState<number | null>(null);
+  const [exportTeacherYear, setExportTeacherYear] = useState(new Date().getFullYear());
+  const [exportTeacherMonth, setExportTeacherMonth] = useState(String(new Date().getMonth() + 1).padStart(2, '0'));
+  const [exportingTeacherCSV, setExportingTeacherCSV] = useState(false);
 
   useEffect(() => {
     if (authLoading) return;
@@ -122,12 +129,21 @@ export default function StatisticsPage() {
     setError('');
     try {
       const dateFilters = getDateFilters(statsYear, statsMonth);
-      const [individualRes, groupRes, remedialRes, levelsRes] = await Promise.all([
+      const promises: Promise<any>[] = [
         api.getIndividualLessons(dateFilters),
         api.getGroupLessons(dateFilters),
         api.getRemedialLessons(dateFilters),
         api.getEducationLevels(),
-      ]);
+      ];
+      
+      // Load teachers if admin view
+      if (isAdmin) {
+        promises.push(api.getTeachers());
+      }
+      
+      const results = await Promise.all(promises);
+      const [individualRes, groupRes, remedialRes, levelsRes, ...rest] = results;
+      const teachersRes = isAdmin ? rest[0] : null;
 
       if (individualRes.success && Array.isArray(individualRes.data)) {
         setIndividualLessons(individualRes.data as IndividualLesson[]);
@@ -152,6 +168,10 @@ export default function StatisticsPage() {
         setEducationLevels(levelsRes.data as EducationLevel[]);
       } else {
         console.error('Failed to load education levels in statistics:', levelsRes);
+      }
+      
+      if (teachersRes && teachersRes.success && Array.isArray(teachersRes.data)) {
+        setTeachers(teachersRes.data as Teacher[]);
       }
     } catch (err: any) {
       setError(err.message || 'حدث خطأ أثناء تحميل الإحصائيات');
@@ -508,6 +528,21 @@ export default function StatisticsPage() {
       header: 'הוראה מתקנת',
       render: (row) => row['remedial'] as string,
     });
+    // Add export column
+    columns.push({
+      key: 'export',
+      header: 'تصدير',
+      render: (row) => (
+        <Button
+          size="sm"
+          variant="secondary"
+          onClick={() => handleOpenTeacherExportModal(row.teacherId)}
+          title="تصدير دروس المعلم"
+        >
+          📥 CSV
+        </Button>
+      ),
+    });
     return columns;
   }, [adminTeacherStats.levels]);
 
@@ -619,6 +654,193 @@ export default function StatisticsPage() {
     link.click();
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
+  };
+
+  const handleOpenTeacherExportModal = (teacherId: number | null) => {
+    setSelectedTeacherForExport(teacherId);
+    setExportTeacherYear(new Date().getFullYear());
+    setExportTeacherMonth(String(new Date().getMonth() + 1).padStart(2, '0'));
+    setTeacherExportModalOpen(true);
+  };
+
+  const handleExportTeacherLessonsCSV = async () => {
+    if (!selectedTeacherForExport) {
+      alert('يرجى اختيار معلم');
+      return;
+    }
+
+    setExportingTeacherCSV(true);
+    try {
+      const monthStart = getFirstDayOfMonth(exportTeacherYear, parseInt(exportTeacherMonth));
+      const monthEnd = getLastDayOfMonth(exportTeacherYear, parseInt(exportTeacherMonth));
+
+      // Fetch all lessons for this teacher in the selected month
+      // Include both approved/not approved and deleted/non-deleted
+      const [individualRes, individualDeletedRes, groupRes, groupDeletedRes, remedialRes, remedialDeletedRes] = await Promise.all([
+        // Non-deleted lessons (approved + not approved)
+        api.getIndividualLessons({
+          teacher_id: selectedTeacherForExport,
+          date_from: monthStart,
+          date_to: monthEnd,
+        }),
+        // Deleted lessons (approved + not approved)
+        api.getIndividualLessons({
+          teacher_id: selectedTeacherForExport,
+          date_from: monthStart,
+          date_to: monthEnd,
+          show_deleted: 'true',
+        }),
+        // Non-deleted group lessons
+        api.getGroupLessons({
+          teacher_id: selectedTeacherForExport,
+          date_from: monthStart,
+          date_to: monthEnd,
+        }),
+        // Deleted group lessons
+        api.getGroupLessons({
+          teacher_id: selectedTeacherForExport,
+          date_from: monthStart,
+          date_to: monthEnd,
+          show_deleted: 'true',
+        }),
+        // Non-deleted remedial lessons
+        api.getRemedialLessons({
+          teacher_id: selectedTeacherForExport,
+          date_from: monthStart,
+          date_to: monthEnd,
+        }),
+        // Deleted remedial lessons
+        api.getRemedialLessons({
+          teacher_id: selectedTeacherForExport,
+          date_from: monthStart,
+          date_to: monthEnd,
+          show_deleted: 'true',
+        }),
+      ]);
+
+      // Combine all lessons
+      const allIndividualLessons = [
+        ...(individualRes.success && Array.isArray(individualRes.data) ? individualRes.data : []),
+        ...(individualDeletedRes.success && Array.isArray(individualDeletedRes.data) ? individualDeletedRes.data : []),
+      ] as IndividualLesson[];
+
+      const allGroupLessons = [
+        ...(groupRes.success && Array.isArray(groupRes.data) ? groupRes.data : []),
+        ...(groupDeletedRes.success && Array.isArray(groupDeletedRes.data) ? groupDeletedRes.data : []),
+      ] as GroupLesson[];
+
+      const allRemedialLessons = [
+        ...(remedialRes.success && Array.isArray(remedialRes.data) ? remedialRes.data : []),
+        ...(remedialDeletedRes.success && Array.isArray(remedialDeletedRes.data) ? remedialDeletedRes.data : []),
+      ] as RemedialLesson[];
+
+      // Prepare export data
+      const exportData: any[] = [];
+
+      // Individual lessons
+      allIndividualLessons.forEach((lesson) => {
+        exportData.push({
+          type: 'درس فردي',
+          date: lesson.date,
+          start_time: lesson.start_time || '',
+          student: lesson.student?.full_name || 'غير محدد',
+          education_level: lesson.education_level?.name_ar || '',
+          hours: Number(lesson.hours) || 0,
+          approved: lesson.approved ? 'نعم' : 'لا',
+          deleted: lesson.deleted_at ? 'نعم' : 'لا',
+          deletion_note: lesson.deletion_note || '',
+          total_cost: lesson.total_cost || 0,
+        });
+      });
+
+      // Group lessons
+      allGroupLessons.forEach((lesson) => {
+        const students = lesson.students?.map((s) => s.full_name).join('، ') || 'غير محدد';
+        exportData.push({
+          type: 'درس جماعي',
+          date: lesson.date,
+          start_time: lesson.start_time || '',
+          student: students,
+          education_level: lesson.education_level?.name_ar || '',
+          hours: Number(lesson.hours) || 0,
+          approved: lesson.approved ? 'نعم' : 'لا',
+          deleted: lesson.deleted_at ? 'نعم' : 'لا',
+          deletion_note: lesson.deletion_note || '',
+          total_cost: lesson.total_cost || 0,
+        });
+      });
+
+      // Remedial lessons
+      allRemedialLessons.forEach((lesson) => {
+        exportData.push({
+          type: 'הוראה מתקנת',
+          date: lesson.date,
+          start_time: lesson.start_time || '',
+          student: lesson.student?.full_name || 'غير محدد',
+          education_level: '',
+          hours: Number(lesson.hours) || 0,
+          approved: lesson.approved ? 'نعم' : 'لا',
+          deleted: lesson.deleted_at ? 'نعم' : 'لا',
+          deletion_note: lesson.deletion_note || '',
+          total_cost: lesson.total_cost || 0,
+        });
+      });
+
+      if (exportData.length === 0) {
+        alert('لا توجد دروس لهذا المعلم في هذا الشهر');
+        setExportingTeacherCSV(false);
+        return;
+      }
+
+      // Sort by date descending
+      exportData.sort((a, b) => b.date.localeCompare(a.date));
+
+      // Create CSV with headers
+      const headers = ['النوع', 'التاريخ', 'وقت البدء', 'الطالب/الطلاب', 'المستوى التعليمي', 'الساعات', 'معتمد', 'محذوف', 'ملاحظة الحذف', 'التكلفة'];
+      const rows = exportData.map((row) => [
+        row.type,
+        row.date,
+        row.start_time,
+        row.student,
+        row.education_level,
+        row.hours.toString(),
+        row.approved,
+        row.deleted,
+        row.deletion_note,
+        row.total_cost ? row.total_cost.toString() : '0',
+      ]);
+
+      const csvContent = [
+        headers.join(','),
+        ...rows.map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(',')),
+      ].join('\n');
+
+      // Add BOM for UTF-8 to ensure Excel displays Arabic correctly
+      const csvWithBOM = '\uFEFF' + csvContent;
+      const blob = new Blob([csvWithBOM], { type: 'text/csv;charset=utf-8;' });
+      const link = document.createElement('a');
+      const url = URL.createObjectURL(blob);
+      link.setAttribute('href', url);
+
+      const teacher = teachers.find((t) => t.id === selectedTeacherForExport);
+      const teacherName = teacher?.full_name?.replace(/\s+/g, '_').replace(/[^\w\u0600-\u06FF]/g, '') || 'teacher';
+      const monthName = statsMonths.find((m) => m.value === exportTeacherMonth)?.label || exportTeacherMonth;
+      const filename = `${teacherName}_lessons_${exportTeacherYear}_${exportTeacherMonth}_${monthName}.csv`;
+      link.setAttribute('download', filename);
+      link.style.visibility = 'hidden';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+
+      setTeacherExportModalOpen(false);
+      alert(`تم تصدير ${exportData.length} درس بنجاح`);
+    } catch (err: any) {
+      console.error('Error exporting teacher lessons:', err);
+      alert('حدث خطأ أثناء تصدير الدروس: ' + (err.message || 'خطأ غير معروف'));
+    } finally {
+      setExportingTeacherCSV(false);
+    }
   };
 
 
@@ -750,6 +972,74 @@ export default function StatisticsPage() {
             <Table columns={studentColumns} data={filteredStudentStats} />
           )}
         </Card>
+
+        <Modal
+          open={teacherExportModalOpen}
+          onClose={() => setTeacherExportModalOpen(false)}
+          ariaLabel="تصدير دروس المعلم"
+        >
+          <Card title={`تصدير دروس ${selectedTeacherForExport ? teachers.find(t => t.id === selectedTeacherForExport)?.full_name || 'المعلم' : 'المعلم'}`}>
+            <div className="space-y-4">
+              {selectedTeacherForExport && (
+                <div className="p-3 bg-gray-50 rounded border">
+                  <p className="text-sm text-gray-600">المعلم المحدد:</p>
+                  <p className="font-semibold text-gray-900">{teachers.find(t => t.id === selectedTeacherForExport)?.full_name || 'غير محدد'}</p>
+                </div>
+              )}
+              {!selectedTeacherForExport && (
+                <Select
+                  label="اختر المعلم"
+                  value={selectedTeacherForExport?.toString() || ''}
+                  onChange={(e) => setSelectedTeacherForExport(e.target.value ? parseInt(e.target.value, 10) : null)}
+                  options={[
+                    { value: '', label: 'اختر معلم' },
+                    ...teachers.map((t) => ({
+                      value: t.id.toString(),
+                      label: t.full_name,
+                    })),
+                  ]}
+                  required
+                />
+              )}
+              <div className="grid grid-cols-2 gap-4">
+                <Select
+                  label="السنة"
+                  value={exportTeacherYear.toString()}
+                  onChange={(e) => setExportTeacherYear(Number(e.target.value))}
+                  options={[2024, 2025, 2026, 2027, 2028].map((year) => ({
+                    value: year.toString(),
+                    label: year.toString(),
+                  }))}
+                />
+                <Select
+                  label="الشهر"
+                  value={exportTeacherMonth}
+                  onChange={(e) => setExportTeacherMonth(e.target.value)}
+                  options={statsMonths}
+                />
+              </div>
+              <div className="flex gap-2 justify-end">
+                <Button
+                  variant="secondary"
+                  onClick={() => {
+                    setTeacherExportModalOpen(false);
+                    setSelectedTeacherForExport(null);
+                  }}
+                  disabled={exportingTeacherCSV}
+                >
+                  إلغاء
+                </Button>
+                <Button
+                  onClick={handleExportTeacherLessonsCSV}
+                  disabled={!selectedTeacherForExport || exportingTeacherCSV}
+                  isLoading={exportingTeacherCSV}
+                >
+                  {exportingTeacherCSV ? 'جاري التصدير...' : 'تحميل CSV'}
+                </Button>
+              </div>
+            </div>
+          </Card>
+        </Modal>
       </div>
     );
   }

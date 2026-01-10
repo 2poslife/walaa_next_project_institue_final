@@ -9,7 +9,7 @@ import { Input } from '@/components/ui/Input';
 import { ComboBox } from '@/components/ui/ComboBox';
 import { Select } from '@/components/ui/Select';
 import { Modal } from '@/components/ui/Modal';
-import { Payment, Student, IndividualLesson, GroupLesson, GroupPricingTier, RemedialLesson } from '@/types';
+import { Payment, Student, IndividualLesson, GroupLesson, GroupPricingTier, RemedialLesson, EducationLevel } from '@/types';
 import { config } from '@/lib/config';
 import { useAuth } from '@/contexts/AuthContext';
 import { getTodayLocalDate, getFirstDayOfMonth, getLastDayOfMonth } from '@/lib/utils/date';
@@ -50,6 +50,8 @@ export default function PaymentsPage() {
   const [autoCompletingPayment, setAutoCompletingPayment] = useState<number | null>(null);
   const [summarySearch, setSummarySearch] = useState('');
   const [paymentSearch, setPaymentSearch] = useState('');
+  const [educationLevels, setEducationLevels] = useState<EducationLevel[]>([]);
+  const [selectedEducationLevel, setSelectedEducationLevel] = useState<string>('');
   const [exportModalOpen, setExportModalOpen] = useState(false);
   const [exportStudentId, setExportStudentId] = useState<number | null>(null);
   const [exportStudentName, setExportStudentName] = useState('');
@@ -89,12 +91,13 @@ export default function PaymentsPage() {
         api.getIndividualLessons({ approved: true }),
         api.getGroupLessons({ approved: true }),
         api.getRemedialLessons({ approved: true }),
+        api.getEducationLevels(),
       ];
       if (config.app.groupPricingMode === 'tiers') {
         promises.push(api.getGroupPricingTiers());
       }
       const results = await Promise.all(promises);
-      const [paymentsRes, studentsRes, individualLessonsRes, groupLessonsRes, remedialLessonsRes, tiersRes] =
+      const [paymentsRes, studentsRes, individualLessonsRes, groupLessonsRes, remedialLessonsRes, levelsRes, tiersRes] =
         results;
 
       if (paymentsRes.success && paymentsRes.data) {
@@ -111,6 +114,9 @@ export default function PaymentsPage() {
       }
       if (remedialLessonsRes.success && remedialLessonsRes.data) {
         setRemedialLessons(remedialLessonsRes.data as RemedialLesson[]);
+      }
+      if (levelsRes.success && Array.isArray(levelsRes.data)) {
+        setEducationLevels(levelsRes.data as EducationLevel[]);
       }
       if (tiersRes && tiersRes.success && tiersRes.data) {
         setGroupPricingTiers(tiersRes.data as GroupPricingTier[]);
@@ -408,14 +414,27 @@ export default function PaymentsPage() {
   }, [students, individualLessons, groupLessons, remedialLessons, payments, groupPricingTiers]);
 
   const filteredSummaries = useMemo(() => {
-    if (!summarySearch.trim()) {
-      return studentSummaries;
+    let filtered = studentSummaries;
+
+    // Filter by education level
+    if (selectedEducationLevel) {
+      const levelId = parseInt(selectedEducationLevel, 10);
+      filtered = filtered.filter((summary) => {
+        const student = students.find((s) => s.id === summary.studentId);
+        return student?.education_level_id === levelId;
+      });
     }
-    const search = summarySearch.toLowerCase();
-    return studentSummaries.filter((summary) =>
-      summary.studentName.toLowerCase().includes(search)
-    );
-  }, [studentSummaries, summarySearch]);
+
+    // Filter by search text
+    if (summarySearch.trim()) {
+      const search = summarySearch.toLowerCase();
+      filtered = filtered.filter((summary) =>
+        summary.studentName.toLowerCase().includes(search)
+      );
+    }
+
+    return filtered;
+  }, [studentSummaries, summarySearch, selectedEducationLevel, students]);
 
   const handleOpenExportModal = (studentId: number, studentName: string) => {
     setExportStudentId(studentId);
@@ -727,13 +746,28 @@ export default function PaymentsPage() {
       )}
 
       <Card className="mb-6">
-        <div className="flex items-center justify-between mb-4" dir="rtl">
-          <div className="w-64">
-            <Input
-              placeholder="ابحث عن طالب"
-              value={summarySearch}
-              onChange={(e) => setSummarySearch(e.target.value)}
-            />
+        <div className="flex items-center justify-between mb-4 gap-4" dir="rtl">
+          <div className="flex gap-2">
+            <div className="w-64">
+              <Input
+                placeholder="ابحث عن طالب"
+                value={summarySearch}
+                onChange={(e) => setSummarySearch(e.target.value)}
+              />
+            </div>
+            <div className="w-48">
+              <Select
+                value={selectedEducationLevel}
+                onChange={(e) => setSelectedEducationLevel(e.target.value)}
+                options={[
+                  { value: '', label: 'جميع المستويات' },
+                  ...educationLevels.map((level) => ({
+                    value: level.id.toString(),
+                    label: level.name_ar,
+                  })),
+                ]}
+              />
+            </div>
           </div>
           <h3 className="text-lg font-semibold text-gray-900 flex-1 text-center">مستحقات الطلاب</h3>
           <div className="w-64"></div>
