@@ -749,7 +749,6 @@ export default function StatisticsPage() {
           approved: lesson.approved ? 'نعم' : 'لا',
           deleted: lesson.deleted_at ? 'نعم' : 'لا',
           deletion_note: lesson.deletion_note || '',
-          total_cost: lesson.total_cost || 0,
         });
       });
 
@@ -766,7 +765,6 @@ export default function StatisticsPage() {
           approved: lesson.approved ? 'نعم' : 'لا',
           deleted: lesson.deleted_at ? 'نعم' : 'لا',
           deletion_note: lesson.deletion_note || '',
-          total_cost: lesson.total_cost || 0,
         });
       });
 
@@ -782,7 +780,6 @@ export default function StatisticsPage() {
           approved: lesson.approved ? 'نعم' : 'لا',
           deleted: lesson.deleted_at ? 'نعم' : 'لا',
           deletion_note: lesson.deletion_note || '',
-          total_cost: lesson.total_cost || 0,
         });
       });
 
@@ -796,7 +793,7 @@ export default function StatisticsPage() {
       exportData.sort((a, b) => b.date.localeCompare(a.date));
 
       // Create CSV with headers
-      const headers = ['النوع', 'التاريخ', 'وقت البدء', 'الطالب/الطلاب', 'المستوى التعليمي', 'الساعات', 'معتمد', 'محذوف', 'ملاحظة الحذف', 'التكلفة'];
+      const headers = ['النوع', 'التاريخ', 'وقت البدء', 'الطالب/الطلاب', 'المستوى التعليمي', 'الساعات', 'معتمد', 'محذوف', 'ملاحظة الحذف'];
       const rows = exportData.map((row) => [
         row.type,
         row.date,
@@ -807,7 +804,6 @@ export default function StatisticsPage() {
         row.approved,
         row.deleted,
         row.deletion_note,
-        row.total_cost ? row.total_cost.toString() : '0',
       ]);
 
       const csvContent = [

@@ -52,6 +52,7 @@ export default function PaymentsPage() {
   const [paymentSearch, setPaymentSearch] = useState('');
   const [educationLevels, setEducationLevels] = useState<EducationLevel[]>([]);
   const [selectedEducationLevel, setSelectedEducationLevel] = useState<string>('');
+  const [paymentStatus, setPaymentStatus] = useState<string>('all'); // 'all', 'paid', 'unpaid'
   const [exportModalOpen, setExportModalOpen] = useState(false);
   const [exportStudentId, setExportStudentId] = useState<number | null>(null);
   const [exportStudentName, setExportStudentName] = useState('');
@@ -425,6 +426,13 @@ export default function PaymentsPage() {
       });
     }
 
+    // Filter by payment status
+    if (paymentStatus === 'paid') {
+      filtered = filtered.filter((summary) => summary.remaining <= 0);
+    } else if (paymentStatus === 'unpaid') {
+      filtered = filtered.filter((summary) => summary.remaining > 0);
+    }
+
     // Filter by search text
     if (summarySearch.trim()) {
       const search = summarySearch.toLowerCase();
@@ -433,8 +441,9 @@ export default function PaymentsPage() {
       );
     }
 
-    return filtered;
-  }, [studentSummaries, summarySearch, selectedEducationLevel, students]);
+    // Sort by remaining balance (descending - highest first)
+    return filtered.sort((a, b) => b.remaining - a.remaining);
+  }, [studentSummaries, summarySearch, selectedEducationLevel, paymentStatus, students]);
 
   const handleOpenExportModal = (studentId: number, studentName: string) => {
     setExportStudentId(studentId);
@@ -765,6 +774,17 @@ export default function PaymentsPage() {
                     value: level.id.toString(),
                     label: level.name_ar,
                   })),
+                ]}
+              />
+            </div>
+            <div className="w-40">
+              <Select
+                value={paymentStatus}
+                onChange={(e) => setPaymentStatus(e.target.value)}
+                options={[
+                  { value: 'all', label: 'الكل' },
+                  { value: 'paid', label: 'مدفوع' },
+                  { value: 'unpaid', label: 'غير مدفوع' },
                 ]}
               />
             </div>
