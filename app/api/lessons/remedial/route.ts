@@ -30,7 +30,7 @@ export async function GET(request: NextRequest) {
       .select(`
         *,
         teacher:teachers(id, full_name, phone),
-        student:students(id, full_name, parent_contact)
+        student:students(id, full_name, parent_contact, class, education_level:education_levels(id, name_ar, name_en))
       `);
 
     // Apply filters

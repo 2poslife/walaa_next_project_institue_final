@@ -44,6 +44,8 @@ function StatCard({
 interface StudentStat {
   studentId: number;
   studentName: string;
+  educationLevel?: string | null;
+  class?: string | null;
   individualLessons: number;
   individualHours: number;
   groupLessons: number;
@@ -447,12 +449,14 @@ export default function StatisticsPage() {
     if (!showAdminView) return [];
     const map = new Map<number, StudentStat>();
 
-    const ensureEntry = (student: { id: number; full_name?: string | null }) => {
+    const ensureEntry = (student: { id: number; full_name?: string | null; education_level?: { name_ar?: string | null } | null; class?: string | null }) => {
       const existing = map.get(student.id);
       if (existing) return existing;
       const entry: StudentStat = {
         studentId: student.id,
         studentName: student.full_name || `طالب ${student.id}`,
+        educationLevel: student.education_level?.name_ar || null,
+        class: student.class || null,
         individualLessons: 0,
         individualHours: 0,
         groupLessons: 0,
@@ -863,6 +867,22 @@ export default function StatisticsPage() {
   if (showAdminView) {
     const studentColumns: TableColumn<StudentStat>[] = [
       { key: 'studentName', header: 'الطالب' },
+      {
+        key: 'educationLevelAndClass',
+        header: 'المستوى/الصف',
+        render: (row) => {
+          const level = row.educationLevel || '';
+          const class_ = row.class || '';
+          if (level && class_) {
+            return `${level} - ${class_}`;
+          } else if (level) {
+            return level;
+          } else if (class_) {
+            return class_;
+          }
+          return '-';
+        },
+      },
       {
         key: 'individualLessons',
         header: 'دروس فردية',

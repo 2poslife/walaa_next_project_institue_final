@@ -31,7 +31,7 @@ export async function GET(request: NextRequest) {
       .select(`
         *,
         teacher:teachers(id, full_name, phone),
-        student:students(id, full_name, parent_contact, education_level_id),
+        student:students(id, full_name, parent_contact, education_level_id, class, education_level:education_levels(id, name_ar, name_en)),
         education_level:education_levels(id, name_ar, name_en)
       `);
 

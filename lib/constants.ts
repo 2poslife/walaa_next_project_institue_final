@@ -104,6 +104,11 @@ export const API_ROUTES = {
   SETTINGS: {
     BASE: '/api/settings',
   },
+  SPECIAL_LESSON_NOTES: {
+    BASE: '/api/special-lesson-notes',
+    BY_ID: (id: number) => `/api/special-lesson-notes/${id}`,
+    MARK_READ: (id: number) => `/api/special-lesson-notes/${id}/read`,
+  },
 } as const;
 
 // HTTP Status Codes

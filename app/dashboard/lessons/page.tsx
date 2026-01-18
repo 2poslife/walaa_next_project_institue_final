@@ -18,6 +18,7 @@ import {
   Student,
   EducationLevel,
   Teacher,
+  SpecialLessonNote,
 } from '@/types';
 import { useAuth } from '@/contexts/AuthContext';
 
@@ -52,6 +53,7 @@ export default function LessonsPage() {
   >([]);
   const [groupLessons, setGroupLessons] = useState<GroupLesson[]>([]);
   const [remedialLessons, setRemedialLessons] = useState<RemedialLesson[]>([]);
+  const [specialLessonNotes, setSpecialLessonNotes] = useState<SpecialLessonNote[]>([]);
   const [students, setStudents] = useState<Student[]>([]);
   const [educationLevels, setEducationLevels] = useState<EducationLevel[]>([]);
   const [teachers, setTeachers] = useState<Teacher[]>([]);
@@ -251,14 +253,21 @@ export default function LessonsPage() {
         ...(remedialFilters.status === 'deleted' && { show_deleted: 'true' }),
       };
       
-      const [individualRes, groupRes, remedialRes, studentsRes, levelsRes] =
-        await Promise.all([
-          api.getIndividualLessons(individualParams),
-          api.getGroupLessons(groupParams),
-          api.getRemedialLessons(remedialParams),
-          api.getStudents(),
-          api.getEducationLevels(),
-        ]);
+      const promises: Promise<any>[] = [
+        api.getIndividualLessons(individualParams),
+        api.getGroupLessons(groupParams),
+        api.getRemedialLessons(remedialParams),
+        api.getStudents(),
+        api.getEducationLevels(),
+      ];
+
+      // Load special lesson notes (unread for admin, all for teacher)
+      promises.push(
+        api.getSpecialLessonNotes(isAdmin ? { is_read: false } : undefined)
+      );
+
+      const [individualRes, groupRes, remedialRes, studentsRes, levelsRes, specialNotesRes] =
+        await Promise.all(promises);
 
       if (individualRes.success && Array.isArray(individualRes.data)) {
         setIndividualLessons(individualRes.data as IndividualLesson[]);
@@ -286,6 +295,10 @@ export default function LessonsPage() {
 
       if (levelsRes.success && Array.isArray(levelsRes.data)) {
         setEducationLevels(levelsRes.data as EducationLevel[]);
+      }
+
+      if (specialNotesRes?.success && Array.isArray(specialNotesRes.data)) {
+        setSpecialLessonNotes(specialNotesRes.data as SpecialLessonNote[]);
       }
 
       if (isAdmin) {
@@ -1247,6 +1260,21 @@ export default function LessonsPage() {
     [groupLessons]
   );
 
+  const pendingRemedialLessons = useMemo(
+    () => remedialLessons.filter((lesson) => !lesson.approved && !lesson.deleted_at),
+    [remedialLessons]
+  );
+
+  const pendingSpecialNotes = useMemo(() => {
+    if (isAdmin) {
+      // Admin sees unread notes
+      return specialLessonNotes.filter((note) => !note.is_read);
+    } else {
+      // Teacher sees all their notes
+      return specialLessonNotes;
+    }
+  }, [specialLessonNotes, isAdmin]);
+
   const lessonTabs: { label: string; value: LessonTab }[] = [
     { label: 'הוראה מתקנת', value: 'remedial' },
     { label: 'الدروس الفردية', value: 'individual' },
@@ -1626,6 +1654,35 @@ export default function LessonsPage() {
       {lessonsError && (
         <div className="bg-red-100 border border-red-300 text-red-700 px-4 py-3 rounded mb-6">
           {lessonsError}
+        </div>
+      )}
+
+      {/* Pending Lessons Summary */}
+      {(pendingIndividualLessons.length > 0 || pendingGroupLessons.length > 0 || pendingRemedialLessons.length > 0 || pendingSpecialNotes.length > 0) && (
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+          <h3 className="text-sm font-semibold text-blue-900 mb-2">الدروس المعلقة (قيد الانتظار):</h3>
+          <div className="flex flex-wrap gap-4 text-sm text-blue-800">
+            {pendingIndividualLessons.length > 0 && (
+              <span>
+                <strong>دروس فردية:</strong> {pendingIndividualLessons.length} درس
+              </span>
+            )}
+            {pendingGroupLessons.length > 0 && (
+              <span>
+                <strong>دروس جماعية:</strong> {pendingGroupLessons.length} درس
+              </span>
+            )}
+            {pendingRemedialLessons.length > 0 && (
+              <span>
+                <strong>הוראה מתקנת:</strong> {pendingRemedialLessons.length} درس
+              </span>
+            )}
+            {pendingSpecialNotes.length > 0 && (
+              <span>
+                <strong>ملاحظات دروس خاصة:</strong> {pendingSpecialNotes.length} {pendingSpecialNotes.length === 1 ? 'ملاحظة' : 'ملاحظة'}
+              </span>
+            )}
+          </div>
         </div>
       )}
 

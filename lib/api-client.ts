@@ -618,5 +618,51 @@ export const api = {
       body: JSON.stringify({ key, value }),
     });
   },
+
+  // Special Lesson Notes
+  async getSpecialLessonNotes(filters?: {
+    teacher_id?: number;
+    is_read?: boolean;
+    date_from?: string;
+    date_to?: string;
+  }) {
+    const params = new URLSearchParams();
+    if (filters?.teacher_id) params.append('teacher_id', filters.teacher_id.toString());
+    if (filters?.is_read !== undefined) params.append('is_read', filters.is_read.toString());
+    if (filters?.date_from) params.append('date_from', filters.date_from);
+    if (filters?.date_to) params.append('date_to', filters.date_to);
+    
+    const query = params.toString();
+    return apiRequest(`${API_ROUTES.SPECIAL_LESSON_NOTES.BASE}${query ? `?${query}` : ''}`);
+  },
+
+  async createSpecialLessonNote(data: {
+    date: string;
+    start_time?: string;
+    hours?: number;
+    education_level_id?: number;
+    class?: string;
+    student_ids: number[];
+    teacher_note: string;
+  }) {
+    return apiRequest(API_ROUTES.SPECIAL_LESSON_NOTES.BASE, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  async updateSpecialLessonNote(id: number, admin_note: string | null) {
+    return apiRequest(API_ROUTES.SPECIAL_LESSON_NOTES.BY_ID(id), {
+      method: 'PUT',
+      body: JSON.stringify({ admin_note }),
+    });
+  },
+
+  async markSpecialLessonNoteRead(id: number, is_read: boolean) {
+    return apiRequest(API_ROUTES.SPECIAL_LESSON_NOTES.MARK_READ(id), {
+      method: 'PUT',
+      body: JSON.stringify({ is_read }),
+    });
+  },
 };
 

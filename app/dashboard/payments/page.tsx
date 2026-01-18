@@ -66,6 +66,7 @@ export default function PaymentsPage() {
 
   const exportYears = [2024, 2025, 2026, 2027];
   const exportMonths = [
+    { value: 'all', label: 'كل الشهور' },
     { value: '01', label: 'يناير' },
     { value: '02', label: 'فبراير' },
     { value: '03', label: 'مارس' },
@@ -454,10 +455,12 @@ export default function PaymentsPage() {
   };
 
   const handleExportStudentLessonsCSV = (studentId: number, studentName: string, year: number, month: string) => {
-    const monthStart = getFirstDayOfMonth(year, parseInt(month));
-    const monthEnd = getLastDayOfMonth(year, parseInt(month));
+    // Handle "all months" case
+    const isAllMonths = month === 'all';
+    const monthStart = isAllMonths ? `${year}-01-01` : getFirstDayOfMonth(year, parseInt(month));
+    const monthEnd = isAllMonths ? `${year}-12-31` : getLastDayOfMonth(year, parseInt(month));
     
-    // Filter lessons for this student in current month, approved only
+    // Filter lessons for this student, approved only
     const studentIndividualLessons = individualLessons.filter(
       (lesson) =>
         lesson.student_id === studentId &&
@@ -535,7 +538,9 @@ export default function PaymentsPage() {
     });
     
     if (exportData.length === 0) {
-      alert('لا توجد دروس معتمدة لهذا الطالب في هذا الشهر');
+      alert(isAllMonths 
+        ? `لا توجد دروس معتمدة لهذا الطالب في السنة ${year}` 
+        : 'لا توجد دروس معتمدة لهذا الطالب في هذا الشهر');
       return;
     }
     
@@ -566,10 +571,15 @@ export default function PaymentsPage() {
     const url = URL.createObjectURL(blob);
     link.setAttribute('href', url);
     
-    const monthNames = ['يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو', 'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر'];
-    const monthName = monthNames[parseInt(month) - 1];
     const safeStudentName = studentName.replace(/\s+/g, '_').replace(/[^\w\u0600-\u06FF]/g, '');
-    const filename = `${safeStudentName}_lessons_${year}_${month}_${monthName}.csv`;
+    let filename: string;
+    if (isAllMonths) {
+      filename = `${safeStudentName}_lessons_${year}_all_months.csv`;
+    } else {
+      const monthNames = ['يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو', 'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر'];
+      const monthName = monthNames[parseInt(month) - 1];
+      filename = `${safeStudentName}_lessons_${year}_${month}_${monthName}.csv`;
+    }
     link.setAttribute('download', filename);
     link.style.visibility = 'hidden';
     document.body.appendChild(link);

@@ -127,6 +127,28 @@ export interface Payment {
   student?: Student;
 }
 
+export interface SpecialLessonNote {
+  id: number;
+  teacher_id: number;
+  date: string;
+  start_time?: string | null;
+  hours?: number | null;
+  education_level_id?: number | null;
+  class?: string | null;
+  student_ids: number[];
+  teacher_note: string;
+  admin_note?: string | null;
+  is_read: boolean;
+  read_at?: string | null;
+  read_by?: number | null;
+  created_at: string;
+  updated_at: string;
+  teacher?: Teacher;
+  education_level?: EducationLevel;
+  students?: Student[];
+  read_by_user?: User;
+}
+
 // API Request/Response Types
 export interface LoginRequest {
   username: string;

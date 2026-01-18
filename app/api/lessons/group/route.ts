@@ -59,7 +59,7 @@ export async function GET(request: NextRequest) {
         teacher:teachers(id, full_name),
         education_level:education_levels(id, name_ar, name_en),
         students:group_lesson_students(
-          student:students(id, full_name, parent_contact)
+          student:students(id, full_name, parent_contact, class, education_level:education_levels(id, name_ar, name_en))
         )
       `
       );

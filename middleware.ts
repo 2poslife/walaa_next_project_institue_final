@@ -22,6 +22,7 @@ const protectedRoutes = [
   '/api/profile',
   '/api/group-pricing-tiers',
   '/api/settings',
+  '/api/special-lesson-notes',
 ];
 
 // Routes that require admin role
