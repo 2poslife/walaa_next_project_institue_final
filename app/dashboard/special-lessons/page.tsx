@@ -202,8 +202,31 @@ export default function SpecialLessonsPage() {
     return filtered;
   }, [notes, filters.search]);
 
+  const formatHours = (value?: number | null) => {
+    if (value === null || value === undefined || Number.isNaN(value)) {
+      return '-';
+    }
+    if (value === 0.5) return 'نصف ساعة';
+    if (value === 0.75) return 'ثلاثة أرباع ساعة';
+    if (value === 1) return 'ساعة واحدة';
+    if (value === 1.25) return 'ساعة وربع';
+    if (value === 1.5) return 'ساعة ونصف';
+    if (value === 1.75) return 'ساعة وثلاثة أرباع';
+    if (value === 2) return 'ساعتان';
+    if (value === 2.25) return 'ساعتان وربع';
+    if (value === 2.5) return 'ساعتان ونصف';
+    if (value === 2.75) return 'ساعتان وثلاثة أرباع';
+    if (value === 3) return 'ثلاث ساعات';
+    return `${value} ساعة`;
+  };
+
   const columns: TableColumn<SpecialLessonNote>[] = [
     { key: 'date', header: 'التاريخ' },
+    {
+      key: 'hours',
+      header: 'عدد الساعات',
+      render: (note) => formatHours(note.hours),
+    },
     {
       key: 'teacher',
       header: 'المعلم',
