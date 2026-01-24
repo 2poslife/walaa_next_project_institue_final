@@ -658,6 +658,22 @@ export const api = {
     });
   },
 
+  async updateSpecialLessonNoteTeacher(
+    id: number,
+    data: {
+      date: string;
+      start_time?: string;
+      hours?: number;
+      student_ids: number[];
+      teacher_note: string;
+    }
+  ) {
+    return apiRequest(API_ROUTES.SPECIAL_LESSON_NOTES.BY_ID(id), {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  },
+
   async markSpecialLessonNoteRead(id: number, is_read: boolean) {
     return apiRequest(API_ROUTES.SPECIAL_LESSON_NOTES.MARK_READ(id), {
       method: 'PUT',

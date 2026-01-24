@@ -21,6 +21,7 @@ export default function SpecialLessonsPage() {
   const [educationLevels, setEducationLevels] = useState<EducationLevel[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
+  const [editingNote, setEditingNote] = useState<SpecialLessonNote | null>(null);
   const [formData, setFormData] = useState({
     date: getTodayLocalDate(),
     start_time: '',
@@ -99,17 +100,19 @@ export default function SpecialLessonsPage() {
         teacher_note: formData.teacher_note.trim(),
       };
 
-      const response = await api.createSpecialLessonNote(payload);
+      const response = editingNote
+        ? await api.updateSpecialLessonNoteTeacher(editingNote.id, payload)
+        : await api.createSpecialLessonNote(payload);
 
       if (!response.success) {
-        setError(response.error || 'فشل إنشاء الملاحظة');
+        setError(response.error || (editingNote ? 'فشل تعديل الملاحظة' : 'فشل إنشاء الملاحظة'));
         return;
       }
 
       await loadData();
       resetForm();
     } catch (err: any) {
-      setError(err.message || 'حدث خطأ أثناء إنشاء الملاحظة');
+      setError(err.message || (editingNote ? 'حدث خطأ أثناء تعديل الملاحظة' : 'حدث خطأ أثناء إنشاء الملاحظة'));
     } finally {
       setSubmitting(false);
     }
@@ -123,7 +126,34 @@ export default function SpecialLessonsPage() {
       student_ids: [],
       teacher_note: '',
     });
+    setEditingNote(null);
     setShowForm(false);
+    setError('');
+  };
+
+  const openCreateForm = () => {
+    setEditingNote(null);
+    setFormData({
+      date: getTodayLocalDate(),
+      start_time: '',
+      hours: '',
+      student_ids: [],
+      teacher_note: '',
+    });
+    setShowForm(true);
+    setError('');
+  };
+
+  const openEditForm = (note: SpecialLessonNote) => {
+    setEditingNote(note);
+    setFormData({
+      date: note.date,
+      start_time: note.start_time || '',
+      hours: note.hours ? note.hours.toString() : '',
+      student_ids: Array.isArray(note.student_ids) ? note.student_ids : [],
+      teacher_note: note.teacher_note || '',
+    });
+    setShowForm(true);
     setError('');
   };
 
@@ -259,6 +289,19 @@ export default function SpecialLessonsPage() {
         </div>
       ),
     },
+    ...(isTeacher
+      ? [
+          {
+            key: 'edit',
+            header: 'الإجراءات',
+            render: (note: SpecialLessonNote) => (
+              <Button size="sm" variant="secondary" onClick={() => openEditForm(note)}>
+                تعديل
+              </Button>
+            ),
+          },
+        ]
+      : []),
     ...(isAdmin
       ? [
           {
@@ -310,12 +353,12 @@ export default function SpecialLessonsPage() {
           </p>
         </div>
         {isTeacher && (
-          <Button onClick={() => setShowForm(true)}>إضافة ملاحظة درس خاص</Button>
+          <Button onClick={openCreateForm}>إضافة ملاحظة درس خاص</Button>
         )}
       </div>
 
       {showForm && isTeacher && (
-        <Card title="إضافة ملاحظة درس خاص" className="mb-6">
+        <Card title={editingNote ? 'تعديل ملاحظة درس خاص' : 'إضافة ملاحظة درس خاص'} className="mb-6">
           <form onSubmit={handleSubmit} className="space-y-4">
             {error && (
               <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
@@ -430,7 +473,7 @@ export default function SpecialLessonsPage() {
 
             <div className="flex gap-2">
               <Button type="submit" isLoading={submitting}>
-                إضافة الملاحظة
+                {editingNote ? 'حفظ التعديل' : 'إضافة الملاحظة'}
               </Button>
               <Button type="button" variant="secondary" onClick={resetForm}>
                 إلغاء

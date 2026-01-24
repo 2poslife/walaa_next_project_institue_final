@@ -13,15 +13,82 @@ export async function PUT(
 ) {
   try {
     const user = getUserFromRequest(request);
-    if (!user || user.role !== 'admin') {
-      return unauthorizedResponse('Only admins can update special lesson notes');
+    if (!user) {
+      return unauthorizedResponse();
     }
 
     const noteId = parseInt(params.id, 10);
     const body = await request.json();
-    const { admin_note } = body;
+    const isAdmin = user.role === 'admin' || user.role === 'subAdmin';
 
-    // Check if note exists
+    if (isAdmin) {
+      const { admin_note } = body;
+
+      // Check if note exists
+      const { data: existingNote, error: fetchError } = await supabaseAdmin
+        .from('special_lesson_notes')
+        .select('*')
+        .eq('id', noteId)
+        .single();
+
+      if (fetchError || !existingNote) {
+        return notFoundResponse('Special lesson note not found');
+      }
+
+      // Update admin note
+      const { data: updatedNote, error: updateError } = await supabaseAdmin
+        .from('special_lesson_notes')
+        .update({
+          admin_note: admin_note ? admin_note.trim() : null,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', noteId)
+        .select(`
+          *,
+          teacher:teachers(id, full_name, phone),
+          education_level:education_levels(id, name_ar, name_en)
+        `)
+        .single();
+
+      if (updateError || !updatedNote) {
+        console.error('Error updating special lesson note:', updateError);
+        return errorResponse('Failed to update special lesson note');
+      }
+
+      // Fetch students
+      const studentIds = updatedNote.student_ids || [];
+      let students: any[] = [];
+      if (studentIds.length > 0) {
+        const { data: studentsData } = await supabaseAdmin
+          .from('students')
+          .select('id, full_name, class, education_level_id')
+          .in('id', studentIds);
+        students = studentsData || [];
+      }
+
+      const result = {
+        ...updatedNote,
+        students,
+      };
+
+      return successResponse(result, 'تم تحديث الملاحظة بنجاح');
+    }
+
+    if (user.role !== 'teacher') {
+      return unauthorizedResponse('Only admins or teachers can update special lesson notes');
+    }
+
+    const { data: teacher } = await supabaseAdmin
+      .from('teachers')
+      .select('id')
+      .eq('user_id', user.userId)
+      .single();
+
+    if (!teacher) {
+      return errorResponse('Teacher not found');
+    }
+
+    // Check if note exists and belongs to this teacher
     const { data: existingNote, error: fetchError } = await supabaseAdmin
       .from('special_lesson_notes')
       .select('*')
@@ -32,11 +99,30 @@ export async function PUT(
       return notFoundResponse('Special lesson note not found');
     }
 
-    // Update admin note
+    if (existingNote.teacher_id !== teacher.id) {
+      return unauthorizedResponse('You can only update your own notes');
+    }
+
+    const { date, start_time, hours, student_ids, teacher_note } = body;
+
+    // Validate required fields
+    if (!date || !student_ids || !Array.isArray(student_ids) || student_ids.length === 0 || !teacher_note) {
+      return errorResponse('جميع الحقول إلزامية: التاريخ، الطلاب، والملاحظة');
+    }
+
+    // Validate student_ids are numbers
+    if (!student_ids.every((id: any) => typeof id === 'number' && id > 0)) {
+      return errorResponse('معرفات الطلاب غير صحيحة');
+    }
+
     const { data: updatedNote, error: updateError } = await supabaseAdmin
       .from('special_lesson_notes')
       .update({
-        admin_note: admin_note ? admin_note.trim() : null,
+        date,
+        start_time: start_time || null,
+        hours: hours || null,
+        student_ids,
+        teacher_note: teacher_note.trim(),
         updated_at: new Date().toISOString(),
       })
       .eq('id', noteId)
@@ -74,6 +160,7 @@ export async function PUT(
     return errorResponse('An error occurred while updating special lesson note');
   }
 }
+
 
 
 
