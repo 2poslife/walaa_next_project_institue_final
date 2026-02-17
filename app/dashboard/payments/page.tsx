@@ -27,6 +27,15 @@ interface StudentPaymentSummary {
   remaining: number;
 }
 
+interface CalculationRow {
+  type: 'individual' | 'group' | 'remedial';
+  typeLabel: string;
+  date: string;
+  hours: number;
+  cost: number;
+  note?: string;
+}
+
 const formatCurrency = (value: number) => `${value.toFixed(2)} ₪`;
 
 export default function PaymentsPage() {
@@ -58,6 +67,13 @@ export default function PaymentsPage() {
   const [exportStudentName, setExportStudentName] = useState('');
   const [exportYear, setExportYear] = useState(new Date().getFullYear());
   const [exportMonth, setExportMonth] = useState(String(new Date().getMonth() + 1).padStart(2, '0'));
+  const [calculationModalStudentId, setCalculationModalStudentId] = useState<number | null>(null);
+  const [calculationModalLessons, setCalculationModalLessons] = useState<{
+    individual: IndividualLesson[];
+    group: GroupLesson[];
+    remedial: RemedialLesson[];
+  } | null>(null);
+  const [calculationModalLoading, setCalculationModalLoading] = useState(false);
   const { isAdmin } = useAuth();
 
   const currentDate = new Date();
@@ -127,6 +143,29 @@ export default function PaymentsPage() {
       console.error('Error loading data:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const openCalculationModal = async (studentId: number) => {
+    setCalculationModalStudentId(studentId);
+    setCalculationModalLessons(null);
+    setCalculationModalLoading(true);
+    try {
+      const [individualRes, groupRes, remedialRes] = await Promise.all([
+        api.getIndividualLessons({ student_id: studentId, approved: true }),
+        api.getGroupLessons(isAdmin ? { approved: true, for_payment: true } : { approved: true }),
+        api.getRemedialLessons({ student_id: studentId, approved: true }),
+      ]);
+      const individual = (individualRes.success && Array.isArray(individualRes.data) ? individualRes.data : []) as IndividualLesson[];
+      const groupRaw = (groupRes.success && Array.isArray(groupRes.data) ? groupRes.data : []) as GroupLesson[];
+      const groupForStudent = groupRaw.filter((g) => g.students?.some((s: { id: number }) => s.id === studentId));
+      const remedial = (remedialRes.success && Array.isArray(remedialRes.data) ? remedialRes.data : []) as RemedialLesson[];
+      setCalculationModalLessons({ individual, group: groupForStudent, remedial });
+    } catch (err) {
+      console.error('Error loading calculation modal lessons:', err);
+      setCalculationModalLessons({ individual: [], group: [], remedial: [] });
+    } finally {
+      setCalculationModalLoading(false);
     }
   };
 
@@ -446,6 +485,99 @@ export default function PaymentsPage() {
     return filtered.sort((a, b) => b.remaining - a.remaining);
   }, [studentSummaries, summarySearch, selectedEducationLevel, paymentStatus, students]);
 
+  const calculationBreakdown = useMemo(() => {
+    if (calculationModalStudentId == null || !calculationModalLessons) return null;
+    const studentId = calculationModalStudentId;
+    const { individual: ind, group: grp, remedial: rem } = calculationModalLessons;
+    const rows: CalculationRow[] = [];
+    let individualDue = 0;
+    let groupDue = 0;
+    let remedialDue = 0;
+    let studentName = '';
+    let levelName = '';
+
+    ind.forEach((lesson) => {
+      if (!lesson.approved || lesson.student_id !== studentId) return;
+      studentName = lesson.student?.full_name || `طالب ${studentId}`;
+      levelName = lesson.education_level?.name_ar || lesson.student?.education_level?.name_ar || 'غير محدد';
+      const cost = Number(lesson.total_cost) || 0;
+      if (cost <= 0) return;
+      const hours = Number(lesson.hours) || 0;
+      rows.push({
+        type: 'individual',
+        typeLabel: 'فردي',
+        date: lesson.date,
+        hours,
+        cost,
+        note: undefined,
+      });
+      individualDue += cost;
+    });
+
+    grp.forEach((lesson) => {
+      if (!lesson.approved) return;
+      const participants = lesson.students || [];
+      if (!participants.some((s) => s.id === studentId)) return;
+      let totalForLesson = Number(lesson.total_cost) || 0;
+      if (config.app.groupPricingMode === 'tiers' && totalForLesson <= 0) {
+        const tier = groupPricingTiers.find(
+          (t) =>
+            t.education_level_id === lesson.education_level_id &&
+            t.student_count === participants.length
+        );
+        if (tier) {
+          totalForLesson = Number(tier.total_price) * Number(lesson.hours || 1);
+        }
+      }
+      if (totalForLesson <= 0) return;
+      const share = totalForLesson / participants.length;
+      const hours = Number(lesson.hours) || 1;
+      rows.push({
+        type: 'group',
+        typeLabel: 'جماعي',
+        date: lesson.date,
+        hours,
+        cost: parseFloat(share.toFixed(2)),
+        note: `حصة من ${participants.length}`,
+      });
+      groupDue += share;
+    });
+
+    rem.forEach((lesson) => {
+      if (!lesson.approved || lesson.student_id !== studentId) return;
+      const cost = Number(lesson.total_cost) || 0;
+      if (cost <= 0) return;
+      studentName = lesson.student?.full_name || studentName || `طالب ${studentId}`;
+      levelName = lesson.student?.education_level?.name_ar || levelName || 'غير محدد';
+      const hours = Number(lesson.hours) || 0;
+      rows.push({
+        type: 'remedial',
+        typeLabel: 'הוראה מתקנת',
+        date: lesson.date,
+        hours,
+        cost,
+      });
+      remedialDue += cost;
+    });
+
+    const totalDue = individualDue + groupDue + remedialDue;
+    const summary = studentSummaries.find((s) => s.studentId === studentId);
+    if (summary) {
+      studentName = summary.studentName;
+      levelName = summary.levelName;
+    }
+
+    return {
+      studentName,
+      levelName,
+      rows: rows.sort((a, b) => b.date.localeCompare(a.date)),
+      individualDue: parseFloat(individualDue.toFixed(2)),
+      groupDue: parseFloat(groupDue.toFixed(2)),
+      remedialDue: parseFloat(remedialDue.toFixed(2)),
+      totalDue: parseFloat(totalDue.toFixed(2)),
+    };
+  }, [calculationModalStudentId, calculationModalLessons, groupPricingTiers, studentSummaries]);
+
   const handleOpenExportModal = (studentId: number, studentName: string) => {
     setExportStudentId(studentId);
     setExportStudentName(studentName);
@@ -604,6 +736,24 @@ export default function PaymentsPage() {
         </Button>
       ),
     },
+    ...(isAdmin
+      ? [
+          {
+            key: 'howCalculated',
+            header: 'كيف تم الحساب',
+            render: (row: StudentPaymentSummary) => (
+              <Button
+                size="sm"
+                variant="secondary"
+                onClick={() => openCalculationModal(row.studentId)}
+                title="عرض تفاصيل حساب المستحق"
+              >
+                كيف تم الحساب
+              </Button>
+            ),
+          },
+        ]
+      : []),
     { key: 'levelName', header: 'المستوى' },
     {
       key: 'individualDue',
@@ -828,6 +978,75 @@ export default function PaymentsPage() {
           emptyMessage="لا يوجد مدفوعات"
         />
       </Card>
+
+      <Modal
+        open={calculationModalStudentId != null}
+        onClose={() => {
+          setCalculationModalStudentId(null);
+          setCalculationModalLessons(null);
+        }}
+        ariaLabel="كيف تم حساب المستحق"
+      >
+        <Card
+          title={calculationBreakdown ? `كيف تم الحساب - ${calculationBreakdown.studentName}` : 'كيف تم الحساب'}
+          className="max-w-4xl max-h-[85vh] flex flex-col"
+        >
+          <div className="overflow-auto flex-1 min-h-0 space-y-4">
+            {calculationModalLoading ? (
+              <p className="text-gray-500">جاري التحميل...</p>
+            ) : !calculationBreakdown ? (
+              <p className="text-gray-500">—</p>
+            ) : (
+              <>
+                <p className="text-sm text-gray-600">
+                  <strong>المستوى:</strong> {calculationBreakdown.levelName}
+                </p>
+                <div className="border rounded overflow-hidden">
+                  <table className="min-w-full text-sm">
+                    <thead className="bg-gray-100">
+                      <tr>
+                        <th className="text-right py-2 px-3">النوع</th>
+                        <th className="text-right py-2 px-3">التاريخ</th>
+                        <th className="text-right py-2 px-3">الساعات</th>
+                        <th className="text-right py-2 px-3">المبلغ</th>
+                        <th className="text-right py-2 px-3">ملاحظة</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {calculationBreakdown.rows.map((row, i) => (
+                        <tr key={i} className="border-t">
+                          <td className="py-2 px-3">{row.typeLabel}</td>
+                          <td className="py-2 px-3">{row.date}</td>
+                          <td className="py-2 px-3">{row.hours}</td>
+                          <td className="py-2 px-3 font-medium">{row.cost.toFixed(2)} ₪</td>
+                          <td className="py-2 px-3 text-gray-500">{row.note ?? '-'}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                <div className="border-t pt-3 text-sm font-semibold space-y-1">
+                  <p>مستحق فردي: {calculationBreakdown.individualDue.toFixed(2)} ₪</p>
+                  <p>مستحق جماعي: {calculationBreakdown.groupDue.toFixed(2)} ₪</p>
+                  <p>הוראה מתקנת: {calculationBreakdown.remedialDue.toFixed(2)} ₪</p>
+                  <p className="text-lg pt-2">إجمالي المستحق: {calculationBreakdown.totalDue.toFixed(2)} ₪</p>
+                </div>
+              </>
+            )}
+          </div>
+          <div className="pt-4 border-t mt-4 flex justify-end">
+            <Button
+              variant="secondary"
+              onClick={() => {
+                setCalculationModalStudentId(null);
+                setCalculationModalLessons(null);
+              }}
+            >
+              إغلاق
+            </Button>
+          </div>
+        </Card>
+      </Modal>
 
       <Modal
         open={exportModalOpen}
