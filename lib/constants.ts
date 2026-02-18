@@ -83,6 +83,7 @@ export const API_ROUTES = {
   PAYMENTS: {
     BASE: '/api/payments',
     BY_ID: (id: number) => `/api/payments/${id}`,
+    DUES_SUMMARY: '/api/payments/dues-summary',
   },
   PRICING: {
     BASE: '/api/pricing',

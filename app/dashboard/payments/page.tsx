@@ -74,6 +74,12 @@ export default function PaymentsPage() {
     remedial: RemedialLesson[];
   } | null>(null);
   const [calculationModalLoading, setCalculationModalLoading] = useState(false);
+  const [duesSummary, setDuesSummary] = useState<StudentPaymentSummary[] | null>(null);
+  const [duesSummaryError, setDuesSummaryError] = useState('');
+  // When user opens "كيف تم الحساب", we get correct group/remedial from that student's lessons; merge into table
+  const [correctedSummariesByStudent, setCorrectedSummariesByStudent] = useState<
+    Record<number, Pick<StudentPaymentSummary, 'individualDue' | 'groupDue' | 'remedialDue' | 'totalDue' | 'totalPaid' | 'remaining'>>
+  >({});
   const { isAdmin } = useAuth();
 
   const currentDate = new Date();
@@ -106,17 +112,14 @@ export default function PaymentsPage() {
       const promises: Promise<any>[] = [
         api.getPayments(),
         api.getStudents(),
-        api.getIndividualLessons({ approved: true }),
-        api.getGroupLessons({ approved: true }),
-        api.getRemedialLessons({ approved: true }),
+        api.getDuesSummary(),
         api.getEducationLevels(),
       ];
       if (config.app.groupPricingMode === 'tiers') {
         promises.push(api.getGroupPricingTiers());
       }
       const results = await Promise.all(promises);
-      const [paymentsRes, studentsRes, individualLessonsRes, groupLessonsRes, remedialLessonsRes, levelsRes, tiersRes] =
-        results;
+      const [paymentsRes, studentsRes, duesSummaryRes, levelsRes, tiersRes] = results;
 
       if (paymentsRes.success && paymentsRes.data) {
         setPayments(paymentsRes.data);
@@ -124,23 +127,107 @@ export default function PaymentsPage() {
       if (studentsRes.success && studentsRes.data) {
         setStudents(studentsRes.data);
       }
-      if (individualLessonsRes.success && individualLessonsRes.data) {
-        setIndividualLessons(individualLessonsRes.data as IndividualLesson[]);
-      }
-      if (groupLessonsRes.success && groupLessonsRes.data) {
-        setGroupLessons(groupLessonsRes.data as GroupLesson[]);
-      }
-      if (remedialLessonsRes.success && remedialLessonsRes.data) {
-        setRemedialLessons(remedialLessonsRes.data as RemedialLesson[]);
-      }
       if (levelsRes.success && Array.isArray(levelsRes.data)) {
         setEducationLevels(levelsRes.data as EducationLevel[]);
       }
       if (tiersRes && tiersRes.success && tiersRes.data) {
         setGroupPricingTiers(tiersRes.data as GroupPricingTier[]);
       }
+
+      setDuesSummaryError('');
+      const rawRows = duesSummaryRes?.success && Array.isArray(duesSummaryRes.data) ? duesSummaryRes.data : null;
+      const tiers = tiersRes?.success && Array.isArray(tiersRes?.data) ? (tiersRes.data as GroupPricingTier[]) : [];
+      if (rawRows && rawRows.length > 0) {
+        const rows = rawRows as Array<Record<string, unknown>>;
+        const initialSummary: StudentPaymentSummary[] = rows.map((r) => ({
+          studentId: Number(r.student_id ?? r.studentId),
+          studentName: String(r.student_name ?? r.studentName ?? ''),
+          levelName: String(r.level_name ?? r.levelName ?? 'غير محدد'),
+          individualDue: Number(r.individual_due ?? r.individualDue ?? 0),
+          groupDue: Number(r.group_due ?? r.groupDue ?? 0),
+          remedialDue: Number(r.remedial_due ?? r.remedialDue ?? 0),
+          totalDue: Number(r.total_due ?? r.totalDue ?? 0),
+          totalPaid: Number(r.total_paid ?? r.totalPaid ?? 0),
+          remaining: Number(r.remaining ?? 0),
+        }));
+        setIndividualLessons([]);
+        // Fetch group + remedial so we can show correct group/remedial on load (DB often returns 0)
+        const lessonsLimit = 10000;
+        const [groupRes, remedialRes] = await Promise.all([
+          api.getGroupLessons({ approved: true, limit: lessonsLimit }),
+          api.getRemedialLessons({ approved: true, limit: lessonsLimit }),
+        ]);
+        const groupLessonsList = (groupRes.success && Array.isArray(groupRes.data) ? groupRes.data : []) as GroupLesson[];
+        const remedialLessonsList = (remedialRes.success && Array.isArray(remedialRes.data) ? remedialRes.data : []) as RemedialLesson[];
+        setGroupLessons(groupLessonsList);
+        setRemedialLessons(remedialLessonsList);
+        // Patch group/remedial per student (same logic as fallback)
+        const patchMap: Record<number, { groupDue: number; remedialDue: number }> = {};
+        initialSummary.forEach((r) => {
+          patchMap[r.studentId] = { groupDue: 0, remedialDue: 0 };
+        });
+        groupLessonsList.forEach((lesson) => {
+          if (!lesson.approved) return;
+          const participants = lesson.students || [];
+          if (!participants.length) return;
+          let totalForLesson = Number(lesson.total_cost) || 0;
+          if (config.app.groupPricingMode === 'tiers') {
+            const tier = tiers.find(
+              (t) =>
+                t.education_level_id === lesson.education_level_id &&
+                t.student_count === participants.length
+            );
+            if (tier) totalForLesson = Number(tier.total_price) * Number(lesson.hours || 1);
+          }
+          if (totalForLesson <= 0) return;
+          const share = totalForLesson / participants.length;
+          participants.forEach((student: { id: number }) => {
+            if (patchMap[student.id]) patchMap[student.id].groupDue += share;
+          });
+        });
+        remedialLessonsList.forEach((lesson) => {
+          if (!lesson.approved || !lesson.student_id) return;
+          const cost = Number(lesson.total_cost) || 0;
+          if (cost <= 0) return;
+          if (patchMap[lesson.student_id]) patchMap[lesson.student_id].remedialDue += cost;
+        });
+        const patchedSummary = initialSummary.map((r) => {
+          const p = patchMap[r.studentId] || { groupDue: 0, remedialDue: 0 };
+          const groupDue = parseFloat(p.groupDue.toFixed(2));
+          const remedialDue = parseFloat(p.remedialDue.toFixed(2));
+          const totalDue = r.individualDue + groupDue + remedialDue;
+          const remaining = totalDue - r.totalPaid;
+          return { ...r, groupDue, remedialDue, totalDue, remaining };
+        });
+        setDuesSummary(patchedSummary);
+      } else {
+        // Fallback: DB function missing or failed – fetch lessons and compute on client
+        setDuesSummary(null);
+        setDuesSummaryError(
+          rawRows === null
+            ? 'ملخص المستحقات من قاعدة البيانات غير متوفر. جاري استخدام طريقة بديلة (تحميل الدروس).'
+            : ''
+        );
+        const lessonsLimit = 10000;
+        const [individualRes, groupRes, remedialRes] = await Promise.all([
+          api.getIndividualLessons({ approved: true, limit: lessonsLimit }),
+          api.getGroupLessons({ approved: true, limit: lessonsLimit }),
+          api.getRemedialLessons({ approved: true, limit: lessonsLimit }),
+        ]);
+        if (individualRes.success && Array.isArray(individualRes.data)) {
+          setIndividualLessons(individualRes.data as IndividualLesson[]);
+        }
+        if (groupRes.success && Array.isArray(groupRes.data)) {
+          setGroupLessons(groupRes.data as GroupLesson[]);
+        }
+        if (remedialRes.success && Array.isArray(remedialRes.data)) {
+          setRemedialLessons(remedialRes.data as RemedialLesson[]);
+        }
+      }
     } catch (error) {
       console.error('Error loading data:', error);
+      setDuesSummary([]);
+      setDuesSummaryError('فشل تحميل البيانات');
     } finally {
       setLoading(false);
     }
@@ -344,7 +431,9 @@ export default function PaymentsPage() {
       : []),
   ];
 
+  // Dues from DB (get_student_dues_summary) – no lesson fetch for the table
   const studentSummaries = useMemo(() => {
+    if (duesSummary != null) return duesSummary;
     const map = new Map<number, StudentPaymentSummary>();
 
     const ensureEntry = (
@@ -452,7 +541,7 @@ export default function PaymentsPage() {
         remaining,
       };
     });
-  }, [students, individualLessons, groupLessons, remedialLessons, payments, groupPricingTiers]);
+  }, [duesSummary, students, individualLessons, groupLessons, remedialLessons, payments, groupPricingTiers]);
 
   const filteredSummaries = useMemo(() => {
     let filtered = studentSummaries;
@@ -485,6 +574,15 @@ export default function PaymentsPage() {
     return filtered.sort((a, b) => b.remaining - a.remaining);
   }, [studentSummaries, summarySearch, selectedEducationLevel, paymentStatus, students]);
 
+  // Merge in corrected totals from "كيف تم الحساب" so table shows correct group/remedial after user opens details
+  const displaySummaries = useMemo(() => {
+    return filteredSummaries.map((s) => {
+      const corrected = correctedSummariesByStudent[s.studentId];
+      if (!corrected) return s;
+      return { ...s, ...corrected };
+    });
+  }, [filteredSummaries, correctedSummariesByStudent]);
+
   const calculationBreakdown = useMemo(() => {
     if (calculationModalStudentId == null || !calculationModalLessons) return null;
     const studentId = calculationModalStudentId;
@@ -501,17 +599,17 @@ export default function PaymentsPage() {
       studentName = lesson.student?.full_name || `طالب ${studentId}`;
       levelName = lesson.education_level?.name_ar || lesson.student?.education_level?.name_ar || 'غير محدد';
       const cost = Number(lesson.total_cost) || 0;
-      if (cost <= 0) return;
       const hours = Number(lesson.hours) || 0;
+      // Always show the lesson row (even if cost is 0) so no approved lesson is hidden
       rows.push({
         type: 'individual',
         typeLabel: 'فردي',
         date: lesson.date,
         hours,
         cost,
-        note: undefined,
+        note: cost <= 0 ? 'لم يُحسب في المستحق' : undefined,
       });
-      individualDue += cost;
+      if (cost > 0) individualDue += cost;
     });
 
     grp.forEach((lesson) => {
@@ -529,18 +627,20 @@ export default function PaymentsPage() {
           totalForLesson = Number(tier.total_price) * Number(lesson.hours || 1);
         }
       }
-      if (totalForLesson <= 0) return;
-      const share = totalForLesson / participants.length;
       const hours = Number(lesson.hours) || 1;
+      const share = totalForLesson > 0 ? totalForLesson / participants.length : 0;
+      // Always show the lesson row (even if cost is 0) so no approved lesson is hidden
       rows.push({
         type: 'group',
         typeLabel: 'جماعي',
         date: lesson.date,
         hours,
         cost: parseFloat(share.toFixed(2)),
-        note: `حصة من ${participants.length}`,
+        note: totalForLesson > 0
+          ? `حصة من ${participants.length}`
+          : `حصة من ${participants.length} — إجمالي الدرس غير محدد (لم يُحسب في المستحق)`,
       });
-      groupDue += share;
+      if (totalForLesson > 0) groupDue += share;
     });
 
     rem.forEach((lesson) => {
@@ -578,6 +678,25 @@ export default function PaymentsPage() {
     };
   }, [calculationModalStudentId, calculationModalLessons, groupPricingTiers, studentSummaries]);
 
+  // When "كيف تم الحساب" is opened and we have correct breakdown (incl. group/remedial), save it so the table row shows correct totals
+  useEffect(() => {
+    if (calculationBreakdown == null || calculationModalStudentId == null) return;
+    const summary = studentSummaries.find((s) => s.studentId === calculationModalStudentId);
+    const totalPaid = summary?.totalPaid ?? 0;
+    const remaining = calculationBreakdown.totalDue - totalPaid;
+    setCorrectedSummariesByStudent((prev) => ({
+      ...prev,
+      [calculationModalStudentId]: {
+        individualDue: calculationBreakdown.individualDue,
+        groupDue: calculationBreakdown.groupDue,
+        remedialDue: calculationBreakdown.remedialDue,
+        totalDue: calculationBreakdown.totalDue,
+        totalPaid,
+        remaining,
+      },
+    }));
+  }, [calculationBreakdown, calculationModalStudentId, studentSummaries]);
+
   const handleOpenExportModal = (studentId: number, studentName: string) => {
     setExportStudentId(studentId);
     setExportStudentName(studentName);
@@ -586,40 +705,22 @@ export default function PaymentsPage() {
     setExportModalOpen(true);
   };
 
-  const handleExportStudentLessonsCSV = (studentId: number, studentName: string, year: number, month: string) => {
-    // Handle "all months" case
+  const handleExportStudentLessonsCSV = async (studentId: number, studentName: string, year: number, month: string) => {
     const isAllMonths = month === 'all';
     const monthStart = isAllMonths ? `${year}-01-01` : getFirstDayOfMonth(year, parseInt(month));
     const monthEnd = isAllMonths ? `${year}-12-31` : getLastDayOfMonth(year, parseInt(month));
-    
-    // Filter lessons for this student, approved only
-    const studentIndividualLessons = individualLessons.filter(
-      (lesson) =>
-        lesson.student_id === studentId &&
-        lesson.approved &&
-        lesson.date >= monthStart &&
-        lesson.date <= monthEnd &&
-        !lesson.deleted_at
-    );
-    
-    const studentGroupLessons = groupLessons.filter(
-      (lesson) =>
-        lesson.approved &&
-        lesson.date >= monthStart &&
-        lesson.date <= monthEnd &&
-        !lesson.deleted_at &&
-        lesson.students?.some((s) => s.id === studentId)
-    );
-    
-    const studentRemedialLessons = remedialLessons.filter(
-      (lesson) =>
-        lesson.student_id === studentId &&
-        lesson.approved &&
-        lesson.date >= monthStart &&
-        lesson.date <= monthEnd &&
-        !lesson.deleted_at
-    );
-    
+
+    // Fetch this student's lessons for the period (no need to have all lessons in state)
+    const [individualRes, groupRes, remedialRes] = await Promise.all([
+      api.getIndividualLessons({ student_id: studentId, approved: true, date_from: monthStart, date_to: monthEnd }),
+      api.getGroupLessons({ approved: true, date_from: monthStart, date_to: monthEnd }),
+      api.getRemedialLessons({ student_id: studentId, approved: true, date_from: monthStart, date_to: monthEnd }),
+    ]);
+    const studentIndividualLessons = (individualRes.success && Array.isArray(individualRes.data) ? individualRes.data : []) as IndividualLesson[];
+    const groupRaw = (groupRes.success && Array.isArray(groupRes.data) ? groupRes.data : []) as GroupLesson[];
+    const studentGroupLessons = groupRaw.filter((g) => g.students?.some((s: { id: number }) => s.id === studentId));
+    const studentRemedialLessons = (remedialRes.success && Array.isArray(remedialRes.data) ? remedialRes.data : []) as RemedialLesson[];
+
     // Prepare export data
     const exportData: any[] = [];
     
@@ -914,6 +1015,12 @@ export default function PaymentsPage() {
         </Card>
       )}
 
+      {duesSummaryError && (
+        <div className="mb-4 bg-amber-50 border border-amber-200 text-amber-800 px-4 py-3 rounded">
+          {duesSummaryError}
+        </div>
+      )}
+
       <Card className="mb-6">
         <div className="flex items-center justify-between mb-4 gap-4" dir="rtl">
           <div className="flex gap-2">
@@ -954,7 +1061,7 @@ export default function PaymentsPage() {
         </div>
         <Table
           columns={summaryColumns}
-          data={filteredSummaries}
+          data={displaySummaries}
           emptyMessage="لا توجد بيانات لعرضها"
         />
       </Card>

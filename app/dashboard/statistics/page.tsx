@@ -10,7 +10,7 @@ import { Modal } from '@/components/ui/Modal';
 import { api } from '@/lib/api-client';
 import { IndividualLesson, GroupLesson, RemedialLesson, EducationLevel, Teacher } from '@/types';
 import { useAuth } from '@/contexts/AuthContext';
-import { downloadCSV, formatDateForFilename, LessonExportRow } from '@/lib/utils/export';
+import { downloadCSV, downloadCSVWithSummary, formatDateForFilename, LessonExportRow, StudentSummaryRow } from '@/lib/utils/export';
 import { formatLocalDate, getFirstDayOfMonth, getLastDayOfMonth } from '@/lib/utils/date';
 
 interface PastLesson {
@@ -76,8 +76,9 @@ export default function StatisticsPage() {
   const [educationLevels, setEducationLevels] = useState<EducationLevel[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const statsYears = [2025, 2026];
+  const statsYears = [2024, 2025, 2026];
   const statsMonths = [
+    { value: 'all', label: 'كل الشهور' },
     { value: '01', label: 'يناير' },
     { value: '02', label: 'فبراير' },
     { value: '03', label: 'مارس' },
@@ -104,6 +105,9 @@ export default function StatisticsPage() {
   const [exportTeacherYear, setExportTeacherYear] = useState(new Date().getFullYear());
   const [exportTeacherMonth, setExportTeacherMonth] = useState(String(new Date().getMonth() + 1).padStart(2, '0'));
   const [exportingTeacherCSV, setExportingTeacherCSV] = useState(false);
+  const [exportingCSV, setExportingCSV] = useState(false);
+  const [exportingAllLessonsCSV, setExportingAllLessonsCSV] = useState(false);
+  const [exportingFilteredLessonsCSV, setExportingFilteredLessonsCSV] = useState(false);
 
   useEffect(() => {
     if (authLoading) return;
@@ -116,10 +120,16 @@ export default function StatisticsPage() {
   }, [authLoading, isTeacher, isAdmin, statsYear, statsMonth]);
 
   const getDateFilters = (year: number, month: string) => {
+    // "all" = entire year (all months)
+    if (month === 'all') {
+      return {
+        date_from: `${year}-01-01`,
+        date_to: `${year}-12-31`,
+      };
+    }
     // Use local date formatting to avoid timezone issues
     const start = new Date(year, Number(month) - 1, 1);
     const end = new Date(year, Number(month), 0);
-    
     return {
       date_from: formatLocalDate(start),
       date_to: formatLocalDate(end),
@@ -131,18 +141,16 @@ export default function StatisticsPage() {
     setError('');
     try {
       const dateFilters = getDateFilters(statsYear, statsMonth);
+      const approvedFilters = { ...dateFilters, approved: true };
       const promises: Promise<any>[] = [
-        api.getIndividualLessons(dateFilters),
-        api.getGroupLessons(dateFilters),
-        api.getRemedialLessons(dateFilters),
+        api.getIndividualLessons(approvedFilters),
+        api.getGroupLessons(approvedFilters),
+        api.getRemedialLessons(approvedFilters),
         api.getEducationLevels(),
       ];
-      
-      // Load teachers if admin view
       if (isAdmin) {
         promises.push(api.getTeachers());
       }
-      
       const results = await Promise.all(promises);
       const [individualRes, groupRes, remedialRes, levelsRes, ...rest] = results;
       const teachersRes = isAdmin ? rest[0] : null;
@@ -152,26 +160,19 @@ export default function StatisticsPage() {
       } else {
         setError(individualRes.error || 'فشل في تحميل الدروس الفردية');
       }
-
       if (groupRes.success && Array.isArray(groupRes.data)) {
         setGroupLessons(groupRes.data as GroupLesson[]);
       } else {
         setError((prev) => prev || groupRes.error || 'فشل في تحميل الدروس الجماعية');
       }
-
       if (remedialRes.success && Array.isArray(remedialRes.data)) {
         setRemedialLessons(remedialRes.data as RemedialLesson[]);
       } else {
         setError((prev) => prev || remedialRes.error || 'فشل في تحميل הוראה מתקנת');
       }
-
       if (levelsRes.success && Array.isArray(levelsRes.data)) {
-        console.log('Education levels loaded in statistics:', levelsRes.data);
         setEducationLevels(levelsRes.data as EducationLevel[]);
-      } else {
-        console.error('Failed to load education levels in statistics:', levelsRes);
       }
-      
       if (teachersRes && teachersRes.success && Array.isArray(teachersRes.data)) {
         setTeachers(teachersRes.data as Teacher[]);
       }
@@ -608,15 +609,290 @@ export default function StatisticsPage() {
     return exportData.sort((a, b) => b.date.localeCompare(a.date));
   }, [individualLessons, groupLessons, remedialLessons, showTeacherView]);
 
-  const handleExportCSV = () => {
-    if (prepareExportData.length === 0) {
-      alert('لا توجد بيانات للتصدير');
+  const handleExportCSV = async () => {
+    if (!teacher?.id) return;
+    setExportingCSV(true);
+    try {
+      const dateFilters = getDateFilters(statsYear, statsMonth);
+      const base = { ...dateFilters, teacher_id: teacher.id };
+      const [indRes, indDelRes, grpRes, grpDelRes, remRes, remDelRes] = await Promise.all([
+        api.getIndividualLessons(base),
+        api.getIndividualLessons({ ...base, show_deleted: 'true' }),
+        api.getGroupLessons(base),
+        api.getGroupLessons({ ...base, show_deleted: 'true' }),
+        api.getRemedialLessons(base),
+        api.getRemedialLessons({ ...base, show_deleted: 'true' }),
+      ]);
+      const ind = [
+        ...(indRes.success && Array.isArray(indRes.data) ? indRes.data : []),
+        ...(indDelRes.success && Array.isArray(indDelRes.data) ? indDelRes.data : []),
+      ] as IndividualLesson[];
+      const grp = [
+        ...(grpRes.success && Array.isArray(grpRes.data) ? grpRes.data : []),
+        ...(grpDelRes.success && Array.isArray(grpDelRes.data) ? grpDelRes.data : []),
+      ] as GroupLesson[];
+      const rem = [
+        ...(remRes.success && Array.isArray(remRes.data) ? remRes.data : []),
+        ...(remDelRes.success && Array.isArray(remDelRes.data) ? remDelRes.data : []),
+      ] as RemedialLesson[];
+      const seenI = new Set<number>();
+      const seenG = new Set<number>();
+      const seenR = new Set<number>();
+      const individualList = ind.filter((l) => (seenI.has(l.id) ? false : (seenI.add(l.id), true)));
+      const groupList = grp.filter((l) => (seenG.has(l.id) ? false : (seenG.add(l.id), true)));
+      const remedialList = rem.filter((l) => (seenR.has(l.id) ? false : (seenR.add(l.id), true)));
+
+      const exportData: LessonExportRow[] = [];
+      individualList.forEach((l) => {
+        exportData.push({
+          type: 'درس فردي',
+          date: l.date,
+          student: l.student?.full_name || 'غير محدد',
+          education_level: l.education_level?.name_ar || '',
+          hours: Number(l.hours) || 0,
+          approved: l.approved ? 'نعم' : 'لا',
+          total_cost: l.total_cost ?? undefined,
+          deleted: l.deleted_at ? 'نعم' : 'لا',
+          deletion_note: l.deletion_note || '',
+        });
+      });
+      groupList.forEach((l) => {
+        exportData.push({
+          type: 'درس جماعي',
+          date: l.date,
+          student: l.students?.map((s) => s.full_name).join('، ') || 'غير محدد',
+          education_level: l.education_level?.name_ar || '',
+          hours: Number(l.hours) || 0,
+          approved: l.approved ? 'نعم' : 'لا',
+          total_cost: l.total_cost ?? undefined,
+          deleted: l.deleted_at ? 'نعم' : 'لا',
+          deletion_note: l.deletion_note || '',
+        });
+      });
+      remedialList.forEach((l) => {
+        exportData.push({
+          type: 'הוראה מתקנת',
+          date: l.date,
+          student: l.student?.full_name || 'غير محدد',
+          education_level: '',
+          hours: Number(l.hours) || 0,
+          approved: l.approved ? 'نعم' : 'لا',
+          total_cost: l.total_cost ?? undefined,
+          deleted: l.deleted_at ? 'نعم' : 'لا',
+          deletion_note: l.deletion_note || '',
+        });
+      });
+      exportData.sort((a, b) => b.date.localeCompare(a.date));
+
+      if (exportData.length === 0) {
+        alert('لا توجد دروس في الفترة المحددة');
+        return;
+      }
+      const teacherName = teacher.full_name?.replace(/\s+/g, '_') || 'teacher';
+      const dateStr = formatDateForFilename(new Date());
+      const filename = `${teacherName}_lessons_${statsYear}_${statsMonth}_${dateStr}.csv`;
+      downloadCSV(exportData, filename);
+    } catch (err: any) {
+      console.error('Export CSV error:', err);
+      alert('حدث خطأ أثناء التصدير: ' + (err.message || 'خطأ غير معروف'));
+    } finally {
+      setExportingCSV(false);
+    }
+  };
+
+  const buildSummaryFromLessonLists = (
+    individualList: IndividualLesson[],
+    groupList: GroupLesson[],
+    remedialList: RemedialLesson[]
+  ): StudentSummaryRow[] => {
+    const map = new Map<number, StudentSummaryRow>();
+    const ensure = (id: number, name: string) => {
+      let row = map.get(id);
+      if (!row) {
+        row = {
+          studentName: name || `طالب ${id}`,
+          individualLessons: 0,
+          individualHours: 0,
+          groupLessons: 0,
+          groupHours: 0,
+          remedialLessons: 0,
+          remedialHours: 0,
+        };
+        map.set(id, row);
+      }
+      return row;
+    };
+    individualList.forEach((l) => {
+      const id = l.student?.id ?? l.student_id;
+      const name = l.student?.full_name;
+      if (id == null || !name) return;
+      const r = ensure(id, name);
+      r.individualLessons += 1;
+      r.individualHours += Number(l.hours) || 0;
+    });
+    groupList.forEach((l) => {
+      const hours = Number(l.hours) || 0;
+      l.students?.forEach((s) => {
+        const r = ensure(s.id, s.full_name);
+        r.groupLessons += 1;
+        r.groupHours += hours;
+      });
+    });
+    remedialList.forEach((l) => {
+      const id = l.student?.id ?? l.student_id;
+      const name = l.student?.full_name;
+      if (id == null || !name) return;
+      const r = ensure(id, name);
+      r.remedialLessons += 1;
+      r.remedialHours += Number(l.hours) || 0;
+    });
+    return Array.from(map.values()).sort((a, b) => a.studentName.localeCompare(b.studentName, 'ar'));
+  };
+
+  const buildLessonsExportRows = (
+    individualList: IndividualLesson[],
+    groupList: GroupLesson[],
+    remedialList: RemedialLesson[],
+    searchFilter?: string
+  ): LessonExportRow[] => {
+    const match = (name: string | undefined) =>
+      !searchFilter || (name || '').toLowerCase().includes(searchFilter.toLowerCase());
+    const rows: LessonExportRow[] = [];
+    individualList.forEach((l) => {
+      rows.push({
+        type: 'درس فردي',
+        date: l.date,
+        student: l.student?.full_name || 'غير محدد',
+        education_level: l.education_level?.name_ar || '',
+        hours: Number(l.hours) || 0,
+        approved: l.approved ? 'نعم' : 'لا',
+        total_cost: l.total_cost ?? undefined,
+        deleted: l.deleted_at ? 'نعم' : 'لا',
+        deletion_note: l.deletion_note || '',
+      });
+    });
+    groupList.forEach((l) => {
+      const studentNames = searchFilter
+        ? l.students?.filter((s) => match(s.full_name)).map((s) => s.full_name).join('، ') || 'غير محدد'
+        : l.students?.map((s) => s.full_name).join('، ') || 'غير محدد';
+      rows.push({
+        type: 'درس جماعي',
+        date: l.date,
+        student: studentNames,
+        education_level: l.education_level?.name_ar || '',
+        hours: Number(l.hours) || 0,
+        approved: l.approved ? 'نعم' : 'لا',
+        total_cost: l.total_cost ?? undefined,
+        deleted: l.deleted_at ? 'نعم' : 'لا',
+        deletion_note: l.deletion_note || '',
+      });
+    });
+    remedialList.forEach((l) => {
+      rows.push({
+        type: 'הוראה מתקנת',
+        date: l.date,
+        student: l.student?.full_name || 'غير محدد',
+        education_level: '',
+        hours: Number(l.hours) || 0,
+        approved: l.approved ? 'نعم' : 'لا',
+        total_cost: l.total_cost ?? undefined,
+        deleted: l.deleted_at ? 'نعم' : 'لا',
+        deletion_note: l.deletion_note || '',
+      });
+    });
+    return rows.sort((a, b) => b.date.localeCompare(a.date));
+  };
+
+  const fetchAllLessonsForPeriod = async () => {
+    const dateFilters = getDateFilters(statsYear, statsMonth);
+    const base = { ...dateFilters };
+    const [indRes, indDelRes, grpRes, grpDelRes, remRes, remDelRes] = await Promise.all([
+      api.getIndividualLessons(base),
+      api.getIndividualLessons({ ...base, show_deleted: 'true' }),
+      api.getGroupLessons(base),
+      api.getGroupLessons({ ...base, show_deleted: 'true' }),
+      api.getRemedialLessons(base),
+      api.getRemedialLessons({ ...base, show_deleted: 'true' }),
+    ]);
+    const ind = [
+      ...(indRes.success && Array.isArray(indRes.data) ? indRes.data : []),
+      ...(indDelRes.success && Array.isArray(indDelRes.data) ? indDelRes.data : []),
+    ] as IndividualLesson[];
+    const grp = [
+      ...(grpRes.success && Array.isArray(grpRes.data) ? grpRes.data : []),
+      ...(grpDelRes.success && Array.isArray(grpDelRes.data) ? grpDelRes.data : []),
+    ] as GroupLesson[];
+    const rem = [
+      ...(remRes.success && Array.isArray(remRes.data) ? remRes.data : []),
+      ...(remDelRes.success && Array.isArray(remDelRes.data) ? remDelRes.data : []),
+    ] as RemedialLesson[];
+    const seenI = new Set<number>();
+    const seenG = new Set<number>();
+    const seenR = new Set<number>();
+    return {
+      individualList: ind.filter((l) => (seenI.has(l.id) ? false : (seenI.add(l.id), true))),
+      groupList: grp.filter((l) => (seenG.has(l.id) ? false : (seenG.add(l.id), true))),
+      remedialList: rem.filter((l) => (seenR.has(l.id) ? false : (seenR.add(l.id), true))),
+    };
+  };
+
+  const handleExportAllLessonsCSV = async () => {
+    setExportingAllLessonsCSV(true);
+    try {
+      const { individualList, groupList, remedialList } = await fetchAllLessonsForPeriod();
+      const exportData = buildLessonsExportRows(individualList, groupList, remedialList);
+      if (exportData.length === 0) {
+        alert('لا توجد دروس في الفترة المحددة');
+        return;
+      }
+      const summaryRows = buildSummaryFromLessonLists(individualList, groupList, remedialList);
+      const monthName = statsMonths.find((m) => m.value === statsMonth)?.label || statsMonth;
+      downloadCSVWithSummary(exportData, summaryRows, `دروس_كل_الفترة_${statsYear}_${monthName}.csv`, formatHours);
+    } catch (err: any) {
+      console.error('Export all lessons CSV error:', err);
+      alert('حدث خطأ أثناء التصدير: ' + (err.message || 'خطأ غير معروف'));
+    } finally {
+      setExportingAllLessonsCSV(false);
+    }
+  };
+
+  const handleExportFilteredLessonsCSV = async () => {
+    const search = adminSearch.trim().toLowerCase();
+    if (!search) {
+      alert('أدخل نص البحث (معلم أو طالب) ثم اضغط التصدير');
       return;
     }
-    const teacherName = teacher?.full_name?.replace(/\s+/g, '_') || 'teacher';
-    const dateStr = formatDateForFilename(new Date());
-    const filename = `${teacherName}_lessons_${statsYear}_${statsMonth}_${dateStr}.csv`;
-    downloadCSV(prepareExportData, filename);
+    setExportingFilteredLessonsCSV(true);
+    try {
+      const { individualList, groupList, remedialList } = await fetchAllLessonsForPeriod();
+      const match = (name: string | undefined) => (name || '').toLowerCase().includes(search);
+      const filteredInd = individualList.filter(
+        (l) => match(l.teacher?.full_name) || match(l.student?.full_name)
+      );
+      const filteredGrp = groupList.filter(
+        (l) =>
+          match(l.teacher?.full_name) ||
+          l.students?.some((s) => match(s.full_name))
+      );
+      const filteredRem = remedialList.filter(
+        (l) => match(l.teacher?.full_name) || match(l.student?.full_name)
+      );
+      const exportData = buildLessonsExportRows(filteredInd, filteredGrp, filteredRem, search);
+      if (exportData.length === 0) {
+        alert('لا توجد دروس مطابقة للبحث في الفترة المحددة');
+        return;
+      }
+      const allSummaryRows = buildSummaryFromLessonLists(filteredInd, filteredGrp, filteredRem);
+      const summaryRows = allSummaryRows.filter((r) => r.studentName.toLowerCase().includes(search));
+      const monthName = statsMonths.find((m) => m.value === statsMonth)?.label || statsMonth;
+      const safeSearch = search.replace(/[^\w\u0600-\u06FF]/g, '_').slice(0, 30);
+      downloadCSVWithSummary(exportData, summaryRows, `دروس_حسب_البحث_${statsYear}_${monthName}_${safeSearch}.csv`, formatHours);
+    } catch (err: any) {
+      console.error('Export filtered lessons CSV error:', err);
+      alert('حدث خطأ أثناء التصدير: ' + (err.message || 'خطأ غير معروف'));
+    } finally {
+      setExportingFilteredLessonsCSV(false);
+    }
   };
 
   const handleExportStudentStatsCSV = () => {
@@ -915,7 +1191,7 @@ export default function StatisticsPage() {
     <div>
             <h1 className="text-3xl font-bold text-gray-900">إحصائيات الإدارة</h1>
             <p className="text-gray-600 mt-1">
-              متابعة أداء المعلمين والطلاب للفترة المحددة.
+              متابعة أداء المعلمين والطلاب للفترة المحددة. <strong>الدروس المعتمدة فقط.</strong>
             </p>
           </div>
           <div className="flex flex-wrap gap-4">
@@ -939,6 +1215,22 @@ export default function StatisticsPage() {
               value={adminSearch}
               onChange={(e) => setAdminSearch(e.target.value)}
             />
+            <Button
+              onClick={handleExportAllLessonsCSV}
+              variant="secondary"
+              disabled={exportingAllLessonsCSV}
+              isLoading={exportingAllLessonsCSV}
+            >
+              {exportingAllLessonsCSV ? 'جاري التصدير...' : 'كل الدروس (الفترة)'}
+            </Button>
+            <Button
+              onClick={handleExportFilteredLessonsCSV}
+              variant="secondary"
+              disabled={exportingFilteredLessonsCSV || !adminSearch.trim()}
+              isLoading={exportingFilteredLessonsCSV}
+            >
+              {exportingFilteredLessonsCSV ? 'جاري التصدير...' : 'دروس البحث فقط'}
+            </Button>
           </div>
         </div>
 
@@ -962,8 +1254,8 @@ export default function StatisticsPage() {
             <button
               onClick={handleExportStudentStatsCSV}
               className="p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded transition-colors"
-              title="تصدير إلى CSV"
-              aria-label="تصدير إلى CSV"
+              title="تصدير ملخص الطلاب (CSV)"
+              aria-label="تصدير ملخص الطلاب"
             >
               <svg
                 xmlns="http://www.w3.org/2000/svg"
@@ -1068,7 +1360,7 @@ export default function StatisticsPage() {
           <h1 className="text-3xl font-bold text-gray-900">إحصائيات المدرس</h1>
           {teacher && (
             <p className="text-gray-600">
-              مرحبًا {teacher.full_name}، إليك ملخص أدائك خلال الفترة المحددة.
+              مرحبًا {teacher.full_name}، إليك ملخص أدائك خلال الفترة المحددة. <strong>الدروس المعتمدة فقط.</strong>
             </p>
           )}
         </div>
@@ -1090,9 +1382,10 @@ export default function StatisticsPage() {
           <Button
             onClick={handleExportCSV}
             variant="secondary"
-            disabled={prepareExportData.length === 0}
+            disabled={exportingCSV}
+            isLoading={exportingCSV}
           >
-            تصدير CSV ({prepareExportData.length} درس)
+            {exportingCSV ? 'جاري التصدير...' : 'تصدير CSV (جميع الدروس)'}
           </Button>
         </div>
       </div>

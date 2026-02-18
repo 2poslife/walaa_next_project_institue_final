@@ -70,6 +70,12 @@ export async function GET(request: NextRequest) {
       }
     }
 
+    const limitParam = searchParams.get('limit');
+    const limit = limitParam ? Math.min(20000, Math.max(1, parseInt(limitParam, 10))) : undefined;
+    if (limit !== undefined && !Number.isNaN(limit)) {
+      query = query.limit(limit);
+    }
+
     const { data: lessons, error } = await query.order('date', { ascending: false }).order('start_time', { ascending: false });
 
     if (error) {

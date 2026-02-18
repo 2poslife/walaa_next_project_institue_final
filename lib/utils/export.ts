@@ -10,13 +10,15 @@ export interface LessonExportRow {
   hours: number;
   approved: string; // 'نعم' | 'لا'
   total_cost?: number;
+  deleted?: string; // 'نعم' | 'لا'
+  deletion_note?: string;
 }
 
 /**
  * Convert lessons data to CSV format
  */
 export function convertToCSV(data: LessonExportRow[]): string {
-  const headers = ['النوع', 'التاريخ', 'الطالب', 'المستوى التعليمي', 'الساعات', 'معتمد'];
+  const headers = ['النوع', 'التاريخ', 'الطالب', 'المستوى التعليمي', 'الساعات', 'معتمد', 'محذوف', 'ملاحظة الحذف'];
   const rows = data.map((row) => [
     row.type,
     row.date,
@@ -24,6 +26,8 @@ export function convertToCSV(data: LessonExportRow[]): string {
     row.education_level || '',
     row.hours.toString(),
     row.approved,
+    row.deleted ?? '',
+    row.deletion_note ?? '',
   ]);
 
   const csvContent = [
@@ -36,11 +40,66 @@ export function convertToCSV(data: LessonExportRow[]): string {
 }
 
 /**
- * Download CSV file
+ * Download CSV file (lessons only)
  */
 export function downloadCSV(data: LessonExportRow[], filename: string) {
   const csv = convertToCSV(data);
   const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const link = document.createElement('a');
+  const url = URL.createObjectURL(blob);
+  link.setAttribute('href', url);
+  link.setAttribute('download', filename);
+  link.style.visibility = 'hidden';
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+}
+
+export interface StudentSummaryRow {
+  studentName: string;
+  individualLessons: number;
+  individualHours: number;
+  groupLessons: number;
+  groupHours: number;
+  remedialLessons: number;
+  remedialHours: number;
+}
+
+/**
+ * Build CSV content for student summary (no BOM)
+ */
+export function summaryToCSVSection(rows: StudentSummaryRow[], formatHours: (n: number) => string): string {
+  const headers = ['الطالب', 'دروس فردية', 'ساعات فردية', 'دروس جماعية', 'ساعات جماعية', 'הוראה מתקנת', 'ساعات הוראה מתקנת', 'إجمالي الساعات'];
+  const dataRows = rows.map((row) => [
+    row.studentName,
+    row.individualLessons.toString(),
+    formatHours(row.individualHours),
+    row.groupLessons.toString(),
+    formatHours(row.groupHours),
+    row.remedialLessons.toString(),
+    formatHours(row.remedialHours),
+    formatHours(row.individualHours + row.groupHours + row.remedialHours),
+  ]);
+  return [
+    headers.join(','),
+    ...dataRows.map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(',')),
+  ].join('\n');
+}
+
+/**
+ * Download CSV with lesson rows and a student summary at the end
+ */
+export function downloadCSVWithSummary(
+  lessonData: LessonExportRow[],
+  summaryRows: StudentSummaryRow[],
+  filename: string,
+  formatHours: (n: number) => string
+) {
+  const lessonCSV = convertToCSV(lessonData);
+  const summarySection = summaryToCSVSection(summaryRows, formatHours);
+  const fullContent = lessonCSV + '\n\nملخص الطلاب\n' + summarySection;
+  const blob = new Blob([fullContent], { type: 'text/csv;charset=utf-8;' });
   const link = document.createElement('a');
   const url = URL.createObjectURL(blob);
   link.setAttribute('href', url);

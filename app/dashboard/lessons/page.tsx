@@ -190,17 +190,19 @@ export default function LessonsPage() {
   const [selectedMonth, setSelectedMonth] = useState(currentMonth);
 
   const getDateFilters = (year: number, month: string) => {
+    // "all" = all months of the selected year (not all years)
     if (month === 'all') {
-      return undefined;
+      return {
+        date_from: `${year}-01-01`,
+        date_to: `${year}-12-31`,
+      };
     }
     const monthNum = Number(month);
     // Format dates as YYYY-MM-DD without timezone conversion
     const startDate = `${year}-${String(monthNum).padStart(2, '0')}-01`;
-    
     // Get last day of month
     const lastDay = new Date(year, monthNum, 0).getDate();
     const endDate = `${year}-${String(monthNum).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
-    
     return {
       date_from: startDate,
       date_to: endDate,

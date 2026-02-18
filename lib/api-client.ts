@@ -551,6 +551,10 @@ export const api = {
     return apiRequest(`${API_ROUTES.PAYMENTS.BASE}${query}`);
   },
 
+  async getDuesSummary() {
+    return apiRequest(API_ROUTES.PAYMENTS.DUES_SUMMARY);
+  },
+
   async createPayment(data: any) {
     return apiRequest(API_ROUTES.PAYMENTS.BASE, {
       method: 'POST',
