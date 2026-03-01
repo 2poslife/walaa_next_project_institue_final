@@ -21,7 +21,12 @@ import {
   SpecialLessonNote,
 } from '@/types';
 import { useAuth } from '@/contexts/AuthContext';
-import { LESSON_SUBMISSION_DEADLINE_DAY } from '@/lib/utils/lesson-submission-deadline';
+import {
+  LESSON_SUBMISSION_DEADLINE_DAY,
+  isLessonDateWithinSubmissionWindow,
+  getLessonSubmissionDeadlineMessage,
+  type LessonDeadlineConfig,
+} from '@/lib/utils/lesson-submission-deadline';
 
 type LessonTab = 'individual' | 'group' | 'remedial';
 
@@ -40,11 +45,20 @@ export default function LessonsPage() {
   const canApproveLessons = isAdmin;
   const [teachersCanAddStudents, setTeachersCanAddStudents] = useState(true);
   const [lessonSubmissionDeadlineDay, setLessonSubmissionDeadlineDay] = useState<number | null>(null);
+  const [lessonSubmissionDeadlineInclusive, setLessonSubmissionDeadlineInclusive] = useState<boolean | null>(null);
 
   const today = useMemo(() => {
     const date = new Date();
     return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
   }, []);
+
+  const lessonDeadlineConfig: LessonDeadlineConfig = useMemo(
+    () => ({
+      deadlineDay: lessonSubmissionDeadlineDay ?? LESSON_SUBMISSION_DEADLINE_DAY,
+      deadlineInclusive: lessonSubmissionDeadlineInclusive ?? true,
+    }),
+    [lessonSubmissionDeadlineDay, lessonSubmissionDeadlineInclusive]
+  );
 
   const [activeTab, setActiveTab] = useState<LessonTab>('individual');
   const [loading, setLoading] = useState(true);
@@ -100,11 +114,14 @@ export default function LessonsPage() {
             const settings = response.data as {
               teachers_can_add_students?: boolean;
               lesson_submission_deadline_day?: string | number;
+              lesson_submission_deadline_inclusive?: boolean | string;
             };
             setTeachersCanAddStudents(settings.teachers_can_add_students ?? true);
             const day = settings.lesson_submission_deadline_day;
             const n = typeof day === 'string' ? parseInt(day, 10) : day;
-            if (Number.isFinite(n) && n >= 1 && n <= 31) setLessonSubmissionDeadlineDay(n);
+            if (n != null && Number.isFinite(n) && n >= 1 && n <= 31) setLessonSubmissionDeadlineDay(n);
+            const inc = settings.lesson_submission_deadline_inclusive;
+            setLessonSubmissionDeadlineInclusive(inc === true || inc === 'true');
           }
         })
         .catch(() => {
@@ -624,6 +641,11 @@ export default function LessonsPage() {
       return;
     }
 
+    if (isTeacher && !remedialEditing && !isLessonDateWithinSubmissionWindow(remedialForm.date, new Date(), lessonDeadlineConfig)) {
+      setRemedialFormError(getLessonSubmissionDeadlineMessage(lessonDeadlineConfig));
+      return;
+    }
+
     if (!remedialForm.start_time || !remedialForm.start_time.trim()) {
       setRemedialFormError('يرجى اختيار وقت بداية الدرس');
       return;
@@ -740,6 +762,11 @@ export default function LessonsPage() {
       return;
     }
 
+    if (isTeacher && !individualEditing && !isLessonDateWithinSubmissionWindow(individualForm.date, new Date(), lessonDeadlineConfig)) {
+      setIndividualFormError(getLessonSubmissionDeadlineMessage(lessonDeadlineConfig));
+      return;
+    }
+
     if (!individualForm.start_time || !individualForm.start_time.trim()) {
       setIndividualFormError('يرجى اختيار وقت بداية الدرس');
       return;
@@ -816,6 +843,11 @@ export default function LessonsPage() {
 
     if (!groupForm.date) {
       setGroupFormError('يرجى اختيار تاريخ الدرس');
+      return;
+    }
+
+    if (isTeacher && !groupEditing && !isLessonDateWithinSubmissionWindow(groupForm.date, new Date(), lessonDeadlineConfig)) {
+      setGroupFormError(getLessonSubmissionDeadlineMessage(lessonDeadlineConfig));
       return;
     }
 
