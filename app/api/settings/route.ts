@@ -41,22 +41,27 @@ export async function GET(request: NextRequest) {
       return successResponse(settingsObj, 'Settings fetched successfully');
     }
 
-    // Teacher (or other roles): return only the safe setting(s)
-    const { data: teacherSetting, error: teacherSettingError } = await supabaseAdmin
+    // Teacher (or other roles): return safe settings (read-only for them)
+    const { data: teacherSettings, error: teacherSettingError } = await supabaseAdmin
       .from('app_settings')
       .select('key, value')
-      .eq('key', 'teachers_can_add_students')
-      .maybeSingle();
+      .in('key', ['teachers_can_add_students', 'lesson_submission_deadline_day', 'lesson_submission_deadline_inclusive']);
 
     if (teacherSettingError) {
       return errorResponse('Failed to fetch settings');
     }
 
     const teachersCanAddStudents =
-      !teacherSetting ? true : teacherSetting.value === 'true';
+      teacherSettings?.find((s) => s.key === 'teachers_can_add_students')?.value !== 'false';
+    const deadlineDay = teacherSettings?.find((s) => s.key === 'lesson_submission_deadline_day')?.value ?? '2';
+    const deadlineInclusive = teacherSettings?.find((s) => s.key === 'lesson_submission_deadline_inclusive')?.value !== 'false';
 
     return successResponse(
-      { teachers_can_add_students: teachersCanAddStudents },
+      {
+        teachers_can_add_students: teachersCanAddStudents,
+        lesson_submission_deadline_day: deadlineDay,
+        lesson_submission_deadline_inclusive: deadlineInclusive,
+      },
       'Settings fetched successfully'
     );
   } catch (error) {

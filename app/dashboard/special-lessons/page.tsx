@@ -13,6 +13,7 @@ import { Modal } from '@/components/ui/Modal';
 import { SpecialLessonNote, Student, EducationLevel, Teacher } from '@/types';
 import { useAuth } from '@/contexts/AuthContext';
 import { getTodayLocalDate } from '@/lib/utils/date';
+import { LESSON_SUBMISSION_DEADLINE_DAY } from '@/lib/utils/lesson-submission-deadline';
 
 export default function SpecialLessonsPage() {
   const { isAdmin, isTeacher, teacher } = useAuth();
@@ -41,10 +42,24 @@ export default function SpecialLessonsPage() {
   const [adminNoteModalOpen, setAdminNoteModalOpen] = useState(false);
   const [selectedNote, setSelectedNote] = useState<SpecialLessonNote | null>(null);
   const [adminNote, setAdminNote] = useState('');
+  const [lessonSubmissionDeadlineDay, setLessonSubmissionDeadlineDay] = useState<number | null>(null);
 
   useEffect(() => {
     loadData();
   }, []);
+
+  useEffect(() => {
+    if (isTeacher) {
+      api.getSettings().then((res) => {
+        if (res.success && res.data) {
+          const data = res.data as { lesson_submission_deadline_day?: string | number };
+          const day = data.lesson_submission_deadline_day;
+          const n = typeof day === 'string' ? parseInt(day, 10) : day;
+          if (Number.isFinite(n) && n >= 1 && n <= 31) setLessonSubmissionDeadlineDay(n);
+        }
+      });
+    }
+  }, [isTeacher]);
 
   const loadData = async () => {
     setLoading(true);
@@ -365,6 +380,9 @@ export default function SpecialLessonsPage() {
                 {error}
               </div>
             )}
+            <p className="text-sm text-gray-600 bg-gray-50 p-2 rounded">
+              يمكن إضافة ملاحظات الدروس الخاصة حتى اليوم {lessonSubmissionDeadlineDay ?? LESSON_SUBMISSION_DEADLINE_DAY} من الشهر التالي لشهر الدرس (نفس موعد إضافة الدروس).
+            </p>
 
             <div className="grid grid-cols-2 gap-4">
               <Input

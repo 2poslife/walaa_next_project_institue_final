@@ -1,24 +1,30 @@
 -- Migration: Convert group lessons that have only 1 student into individual lessons
 -- Run in Supabase SQL Editor. Use when lessons were registered as "group" but had one participant (حصة من 1).
--- Steps: 1) Insert into individual_lessons, 2) Remove from group_lesson_students, 3) Delete from group_lessons.
+--
+-- SAFETY: Wrapped in a transaction. If anything looks wrong, change COMMIT at the end to ROLLBACK.
+-- STEP 0: Run the preview query first (below) to see exactly what will be converted.
 
--- Optional: preview which rows will be converted (run this first to check)
--- SELECT gl.id, gl.date, gl.hours, gl.approved, gl.total_cost, gls.student_id
+-- ========== STEP 0: PREVIEW (run this first, no changes) ==========
+-- SELECT s.full_name, gl.id, gl.date, gl.hours, gl.approved, gl.total_cost
 -- FROM group_lessons gl
 -- JOIN group_lesson_students gls ON gls.group_lesson_id = gl.id
--- WHERE gl.id IN (
---   SELECT group_lesson_id FROM group_lesson_students GROUP BY group_lesson_id HAVING COUNT(*) = 1
--- );
+-- JOIN students s ON s.id = gls.student_id
+-- WHERE gl.id IN (SELECT group_lesson_id FROM group_lesson_students GROUP BY group_lesson_id HAVING COUNT(*) = 1)
+-- ORDER BY s.full_name, gl.date;
 
--- Step 1: Save the list of group_lesson ids that have exactly 1 student (so we can delete them after)
-CREATE TEMP TABLE IF NOT EXISTS _single_student_group_ids AS
+-- ========== CONVERSION (run when ready) ==========
+BEGIN;
+
+-- Step 1: Save the list of group_lesson ids that have exactly 1 student
+DROP TABLE IF EXISTS _single_student_group_ids;
+CREATE TEMP TABLE _single_student_group_ids AS
 SELECT group_lesson_id AS id
 FROM group_lesson_students
 GROUP BY group_lesson_id
 HAVING COUNT(*) = 1;
 
 -- Step 2: Insert into individual_lessons (copy teacher, student, level, date, time, hours, approved, cost, etc.)
--- If your DB has no deleted_at/deletion_note on individual_lessons, remove those two columns from INSERT and SELECT.
+-- If your DB has no deleted_at/deletion_note, remove those two columns from INSERT and SELECT.
 INSERT INTO individual_lessons (
   teacher_id,
   student_id,
@@ -56,5 +62,7 @@ WHERE group_lesson_id IN (SELECT id FROM _single_student_group_ids);
 DELETE FROM group_lessons
 WHERE id IN (SELECT id FROM _single_student_group_ids);
 
--- Optional: drop temp table (session-bound anyway)
 DROP TABLE IF EXISTS _single_student_group_ids;
+
+-- Confirm: COMMIT makes changes permanent. To test without saving, replace COMMIT with ROLLBACK.
+COMMIT;

@@ -7,6 +7,11 @@ import { NextRequest } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
 import { getUserFromRequest } from '@/lib/utils/get-user-from-request';
 import { successResponse, errorResponse, unauthorizedResponse } from '@/lib/utils/api-response';
+import {
+  isLessonDateWithinSubmissionWindow,
+  getLessonSubmissionDeadlineMessage,
+  getLessonDeadlineConfigFromSettings,
+} from '@/lib/utils/lesson-submission-deadline';
 import { LessonFilters } from '@/types';
 
 export async function GET(request: NextRequest) {
@@ -112,6 +117,14 @@ export async function POST(request: NextRequest) {
         .single();
       if (!teacher || teacher.id !== teacher_id) {
         return unauthorizedResponse('You can only create lessons for yourself');
+      }
+      const { data: deadlineRows } = await supabaseAdmin
+        .from('app_settings')
+        .select('key, value')
+        .in('key', ['lesson_submission_deadline_day', 'lesson_submission_deadline_inclusive']);
+      const deadlineConfig = getLessonDeadlineConfigFromSettings(deadlineRows ?? []);
+      if (!isLessonDateWithinSubmissionWindow(date, new Date(), deadlineConfig)) {
+        return errorResponse(getLessonSubmissionDeadlineMessage(deadlineConfig));
       }
     }
 

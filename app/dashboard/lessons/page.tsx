@@ -21,6 +21,7 @@ import {
   SpecialLessonNote,
 } from '@/types';
 import { useAuth } from '@/contexts/AuthContext';
+import { LESSON_SUBMISSION_DEADLINE_DAY } from '@/lib/utils/lesson-submission-deadline';
 
 type LessonTab = 'individual' | 'group' | 'remedial';
 
@@ -38,6 +39,7 @@ export default function LessonsPage() {
   const canCreateLessons = isTeacher;
   const canApproveLessons = isAdmin;
   const [teachersCanAddStudents, setTeachersCanAddStudents] = useState(true);
+  const [lessonSubmissionDeadlineDay, setLessonSubmissionDeadlineDay] = useState<number | null>(null);
 
   const today = useMemo(() => {
     const date = new Date();
@@ -95,8 +97,14 @@ export default function LessonsPage() {
         .getSettings()
         .then((response) => {
           if (response.success && response.data) {
-            const settings = response.data as { teachers_can_add_students?: boolean };
+            const settings = response.data as {
+              teachers_can_add_students?: boolean;
+              lesson_submission_deadline_day?: string | number;
+            };
             setTeachersCanAddStudents(settings.teachers_can_add_students ?? true);
+            const day = settings.lesson_submission_deadline_day;
+            const n = typeof day === 'string' ? parseInt(day, 10) : day;
+            if (Number.isFinite(n) && n >= 1 && n <= 31) setLessonSubmissionDeadlineDay(n);
           }
         })
         .catch(() => {
@@ -1778,6 +1786,11 @@ export default function LessonsPage() {
                     {individualFormError}
                   </div>
                 )}
+                {isTeacher && !individualEditing && (
+                  <p className="text-sm text-gray-600 bg-gray-50 p-2 rounded">
+                    يمكن إضافة الدروس حتى اليوم {lessonSubmissionDeadlineDay ?? LESSON_SUBMISSION_DEADLINE_DAY} من الشهر التالي لشهر الدرس.
+                  </p>
+                )}
 
                 {!isTeacher && (
                   <Select
@@ -2033,6 +2046,11 @@ export default function LessonsPage() {
                   <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
                     {groupFormError}
                   </div>
+                )}
+                {isTeacher && !groupEditing && (
+                  <p className="text-sm text-gray-600 bg-gray-50 p-2 rounded">
+                    يمكن إضافة الدروس حتى اليوم {lessonSubmissionDeadlineDay ?? LESSON_SUBMISSION_DEADLINE_DAY} من الشهر التالي لشهر الدرس.
+                  </p>
                 )}
 
                 {!isTeacher && (
@@ -2513,6 +2531,11 @@ export default function LessonsPage() {
                   <div className="bg-red-100 border border-red-300 text-red-700 px-4 py-3 rounded mb-4">
                     {remedialFormError}
                   </div>
+                )}
+                {isTeacher && !remedialEditing && (
+                  <p className="text-sm text-gray-600 bg-gray-50 p-2 rounded mb-4">
+                    يمكن إضافة الدروس حتى اليوم {lessonSubmissionDeadlineDay ?? LESSON_SUBMISSION_DEADLINE_DAY} من الشهر التالي لشهر الدرس.
+                  </p>
                 )}
 
                 {!teacher && isAdmin && (

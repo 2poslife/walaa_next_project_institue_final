@@ -6,6 +6,11 @@ import { NextRequest } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
 import { getUserFromRequest } from '@/lib/utils/get-user-from-request';
 import { successResponse, errorResponse, unauthorizedResponse, notFoundResponse } from '@/lib/utils/api-response';
+import {
+  isLessonDateWithinSubmissionWindow,
+  getLessonSubmissionDeadlineMessage,
+  getLessonDeadlineConfigFromSettings,
+} from '@/lib/utils/lesson-submission-deadline';
 
 export async function PUT(
   request: NextRequest,
@@ -108,6 +113,16 @@ export async function PUT(
     // Validate required fields
     if (!date || !student_ids || !Array.isArray(student_ids) || student_ids.length === 0 || !teacher_note) {
       return errorResponse('جميع الحقول إلزامية: التاريخ، الطلاب، والملاحظة');
+    }
+
+    // Same deadline as lessons: teachers cannot set note date outside the submission window
+    const { data: deadlineRows } = await supabaseAdmin
+      .from('app_settings')
+      .select('key, value')
+      .in('key', ['lesson_submission_deadline_day', 'lesson_submission_deadline_inclusive']);
+    const deadlineConfig = getLessonDeadlineConfigFromSettings(deadlineRows ?? []);
+    if (!isLessonDateWithinSubmissionWindow(date, new Date(), deadlineConfig)) {
+      return errorResponse(getLessonSubmissionDeadlineMessage(deadlineConfig));
     }
 
     // Validate student_ids are numbers
