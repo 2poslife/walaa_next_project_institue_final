@@ -55,7 +55,7 @@ export default function SpecialLessonsPage() {
           const data = res.data as { lesson_submission_deadline_day?: string | number };
           const day = data.lesson_submission_deadline_day;
           const n = typeof day === 'string' ? parseInt(day, 10) : day;
-          if (Number.isFinite(n) && n >= 1 && n <= 31) setLessonSubmissionDeadlineDay(n);
+          if (n != null && Number.isFinite(n) && n >= 1 && n <= 31) setLessonSubmissionDeadlineDay(n);
         }
       });
     }
