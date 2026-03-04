@@ -2499,6 +2499,16 @@ export default function LessonsPage() {
                           </Button>
                         </>
                       )}
+                      {isAdmin && !isDeleted && (
+                        <Button
+                          size="sm"
+                          variant="danger"
+                          onClick={() => handleDeleteRemedial(lesson)}
+                          disabled={lesson.approved}
+                        >
+                          رفض
+                        </Button>
+                      )}
                       {isAdmin && isDeleted && (
                         <Button
                           size="sm"
