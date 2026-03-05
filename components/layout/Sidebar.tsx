@@ -19,6 +19,7 @@ const navigation: NavItem[] = [
   { name: 'Students', href: '/dashboard/students', icon: '👩‍🎓', adminOnly: true },
   { name: 'Teachers', href: '/dashboard/teachers', icon: '👨‍🏫', adminOnly: true },
   { name: 'Payments', href: '/dashboard/payments', icon: '💰', adminOnly: true },
+  { name: 'التقارير والإحصائيات', href: '/dashboard/reports', icon: '📊', adminOnly: true },
   { name: 'Pricing', href: '/dashboard/pricing', icon: '💵', adminOnly: true },
   { name: 'Settings', href: '/dashboard/settings', icon: '⚙️', adminOnly: true },
   { name: 'Profile', href: '/dashboard/profile', icon: '👤' },

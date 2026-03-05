@@ -28,6 +28,7 @@ export default function StudentsPage() {
     full_name?: string;
     parent_contact?: string;
     education_level_id?: string;
+    class?: string;
   }>({});
   const [filters, setFilters] = useState({
     search: '',
@@ -225,6 +226,9 @@ export default function StudentsPage() {
     if (!formData.education_level_id) {
       validationErrors.education_level_id = 'يرجى اختيار المستوى التعليمي';
     }
+    if (!formData.class?.trim()) {
+      validationErrors.class = 'يرجى اختيار الصف';
+    }
     if (formData.parent_contact.trim()) {
       const phoneRegex = /^05\d{8}$/;
       if (!phoneRegex.test(formData.parent_contact.trim())) {
@@ -243,7 +247,7 @@ export default function StudentsPage() {
         full_name: formData.full_name,
         parent_contact: formData.parent_contact || null,
         education_level_id: formData.education_level_id ? parseInt(formData.education_level_id) : null,
-        class: formData.class?.trim() || null,
+        class: formData.class.trim(),
       };
 
       if (editingStudent) {
@@ -534,15 +538,33 @@ export default function StudentsPage() {
             )}
 
             {canManageStudents && (
-              <Input
-                label="الصف"
-                type="text"
-                value={formData.class}
-                onChange={(e) => {
-                  setFormData({ ...formData, class: e.target.value });
-                }}
-                placeholder="مثال: أول، ثاني، ثالث..."
-              />
+              <>
+                <Select
+                  label="الصف"
+                  value={formData.class}
+                  onChange={(e) => {
+                    setFormData({ ...formData, class: e.target.value });
+                    setFieldErrors((prev) => ({ ...prev, class: undefined }));
+                  }}
+                  options={[
+                    { value: '', label: 'اختر الصف' },
+                  { value: 'أول', label: 'أول' },
+                  { value: 'ثاني', label: 'ثاني' },
+                  { value: 'ثالث', label: 'ثالث' },
+                  { value: 'رابع', label: 'رابع' },
+                  { value: 'خامس', label: 'خامس' },
+                  { value: 'سادس', label: 'سادس' },
+                  { value: 'سابع', label: 'سابع' },
+                  { value: 'ثامن', label: 'ثامن' },
+                  { value: 'تاسع', label: 'تاسع' },
+                  { value: 'عاشر', label: 'عاشر' },
+                ]}
+                  required
+                />
+                {fieldErrors.class && (
+                  <p className="text-sm text-red-600">{fieldErrors.class}</p>
+                )}
+              </>
             )}
 
             <div className="flex gap-2">

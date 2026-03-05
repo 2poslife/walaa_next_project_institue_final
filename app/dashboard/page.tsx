@@ -49,6 +49,13 @@ export default function DashboardPage() {
         gradient: 'from-yellow-500 to-orange-500',
         bgGradient: 'from-yellow-50 to-orange-50',
       },
+      {
+        href: '/dashboard/reports',
+        icon: '📊',
+        title: 'التقارير والإحصائيات',
+        gradient: 'from-indigo-500 to-blue-500',
+        bgGradient: 'from-indigo-50 to-blue-50',
+      },
     ] : []),
   ];
 

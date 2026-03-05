@@ -147,6 +147,7 @@ export default function LessonsPage() {
     full_name?: string;
     parent_contact?: string;
     education_level_id?: string;
+    class?: string;
   }>({});
   const [studentSubmitting, setStudentSubmitting] = useState(false);
 
@@ -438,12 +439,18 @@ export default function LessonsPage() {
       return;
     }
 
+    if (!studentFormData.class?.trim()) {
+      setStudentFieldErrors({ class: 'يرجى اختيار الصف' });
+      setStudentSubmitting(false);
+      return;
+    }
+
     try {
       const submitData = {
         full_name: studentFormData.full_name,
         parent_contact: studentFormData.parent_contact || null,
         education_level_id: studentFormData.education_level_id ? parseInt(studentFormData.education_level_id) : null,
-        class: studentFormData.class?.trim() || null,
+        class: studentFormData.class.trim(),
       };
 
       const response = await api.createStudent(submitData);
@@ -2767,15 +2774,31 @@ export default function LessonsPage() {
               <p className="text-sm text-red-600">{studentFieldErrors.education_level_id}</p>
             )}
 
-            <Input
+            <Select
               label="الصف"
-              type="text"
               value={studentFormData.class}
               onChange={(e) => {
                 setStudentFormData({ ...studentFormData, class: e.target.value });
+                setStudentFieldErrors((prev) => ({ ...prev, class: undefined }));
               }}
-              placeholder="مثال: أول، ثاني، ثالث..."
+              options={[
+                { value: '', label: 'اختر الصف' },
+                { value: 'أول', label: 'أول' },
+                { value: 'ثاني', label: 'ثاني' },
+                { value: 'ثالث', label: 'ثالث' },
+                { value: 'رابع', label: 'رابع' },
+                { value: 'خامس', label: 'خامس' },
+                { value: 'سادس', label: 'سادس' },
+                { value: 'سابع', label: 'سابع' },
+                { value: 'ثامن', label: 'ثامن' },
+                { value: 'تاسع', label: 'تاسع' },
+                { value: 'عاشر', label: 'عاشر' },
+              ]}
+              required
             />
+            {studentFieldErrors.class && (
+              <p className="text-sm text-red-600">{studentFieldErrors.class}</p>
+            )}
 
             <div className="flex gap-2">
               <Button 
