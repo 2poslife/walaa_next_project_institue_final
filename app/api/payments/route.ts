@@ -31,13 +31,23 @@ export async function GET(request: NextRequest) {
       query = query.eq('student_id', parseInt(studentId, 10));
     }
 
-    const { data: payments, error } = await query;
-
-    if (error) {
-      return errorResponse('Failed to fetch payments');
+    // Supabase returns max 1000 per request; paginate to get all
+    const pageSize = 1000;
+    const all: any[] = [];
+    let from = 0;
+    let hasMore = true;
+    while (hasMore) {
+      const { data: chunk, error } = await query.range(from, from + pageSize - 1);
+      if (error) {
+        return errorResponse('Failed to fetch payments');
+      }
+      const rows = chunk || [];
+      all.push(...rows);
+      hasMore = rows.length === pageSize;
+      from += pageSize;
     }
 
-    return successResponse(payments);
+    return successResponse(all);
   } catch (error) {
     console.error('Get payments error:', error);
     return errorResponse('An error occurred while fetching payments');

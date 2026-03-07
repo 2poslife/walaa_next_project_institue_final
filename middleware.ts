@@ -23,6 +23,7 @@ const protectedRoutes = [
   '/api/group-pricing-tiers',
   '/api/settings',
   '/api/special-lesson-notes',
+  '/api/backup',
 ];
 
 // Routes that require admin role
@@ -33,6 +34,7 @@ const adminRoutes = [
   '/api/statistics',
   '/api/reports',
   '/api/group-pricing-tiers',
+  '/api/backup',
   // NOTE: /api/settings GET is allowed for all authenticated users (returns limited settings for teachers).
   // Admin enforcement for updates happens inside the route handler (PUT).
 ];

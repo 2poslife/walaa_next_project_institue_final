@@ -93,20 +93,32 @@ export async function GET(request: NextRequest) {
     }
 
     const limitParam = searchParams.get('limit');
-    const limit = limitParam ? Math.min(20000, Math.max(1, parseInt(limitParam, 10))) : undefined;
-    if (limit !== undefined && !Number.isNaN(limit)) {
-      query = query.limit(limit);
+    const requestedLimit = limitParam
+      ? Math.min(20000, Math.max(1, parseInt(limitParam, 10)))
+      : null;
+    const pageSize = 1000;
+
+    const ordered = query.order('date', { ascending: false });
+    const all: any[] = [];
+    let from = 0;
+    let hasMore = true;
+    while (hasMore) {
+      const take =
+        requestedLimit !== null && !Number.isNaN(requestedLimit)
+          ? Math.min(pageSize, requestedLimit - all.length)
+          : pageSize;
+      if (take <= 0) break;
+      const { data: chunk, error } = await ordered.range(from, from + take - 1);
+      if (error) {
+        return errorResponse('Failed to fetch group lessons');
+      }
+      const rows = (chunk || []).map(normalizeGroupLesson);
+      all.push(...rows);
+      hasMore = rows.length === pageSize && (requestedLimit === null || all.length < requestedLimit);
+      from += take;
     }
 
-    const { data: lessons, error } = await query.order('date', {
-      ascending: false,
-    });
-
-    if (error) {
-      return errorResponse('Failed to fetch group lessons');
-    }
-
-    return successResponse((lessons || []).map(normalizeGroupLesson));
+    return successResponse(all);
   } catch (error) {
     console.error('Get group lessons error:', error);
     return errorResponse('An error occurred while fetching group lessons');

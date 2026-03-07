@@ -105,6 +105,7 @@ export const API_ROUTES = {
   SETTINGS: {
     BASE: '/api/settings',
   },
+  BACKUP: '/api/backup',
   SPECIAL_LESSON_NOTES: {
     BASE: '/api/special-lesson-notes',
     BY_ID: (id: number) => `/api/special-lesson-notes/${id}`,

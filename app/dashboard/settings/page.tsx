@@ -20,6 +20,8 @@ export default function SettingsPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [backupLoading, setBackupLoading] = useState(false);
+  const [backupError, setBackupError] = useState<string | null>(null);
 
   useEffect(() => {
     loadSettings();
@@ -70,6 +72,41 @@ export default function SettingsPage() {
       setError(err?.message || 'حدث خطأ أثناء حفظ الإعدادات');
     } finally {
       setSaving(false);
+    }
+  };
+
+  const downloadBackup = async () => {
+    if (!isAdmin) return;
+    setBackupError(null);
+    setBackupLoading(true);
+    try {
+      const response = await api.getFullBackup();
+      if (!response.success || !response.data) {
+        setBackupError(response.error || 'فشل إنشاء النسخة الاحتياطية');
+        return;
+      }
+      const csvContent = response.data?.csv;
+      if (!csvContent) {
+        setBackupError('لا توجد بيانات للتحميل');
+        return;
+      }
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      const now = new Date();
+      const datePart = now.toISOString().slice(0, 10).replace(/-/g, '');
+      const timePart = now.toISOString().slice(11, 19).replace(/:/g, '');
+      link.download = `backup-${datePart}-${timePart}.csv`;
+      link.style.visibility = 'hidden';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    } catch (err: any) {
+      setBackupError(err?.message || 'حدث خطأ أثناء تحميل النسخة الاحتياطية');
+    } finally {
+      setBackupLoading(false);
     }
   };
 
@@ -177,6 +214,22 @@ export default function SettingsPage() {
           </div>
         </div>
       </Card>
+
+      {isAdmin && (
+        <Card title="نسخ احتياطي للبيانات" variant="elevated" className="mb-6">
+          <p className="text-sm text-gray-600 mb-4">
+            تحميل ملف JSON يحتوي على جميع الدروس (مع أسماء المعلمين والطلاب)، المدفوعات، وملاحظات الدروس الخاصة. احتفظ بالملف في مكان آمن في حال تعطل قاعدة البيانات.
+          </p>
+          {backupError && (
+            <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
+              {backupError}
+            </div>
+          )}
+          <Button onClick={downloadBackup} disabled={backupLoading}>
+            {backupLoading ? 'جاري إنشاء الملف...' : 'تحميل نسخة احتياطية كاملة'}
+          </Button>
+        </Card>
+      )}
     </div>
   );
 }

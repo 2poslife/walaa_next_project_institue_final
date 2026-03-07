@@ -3,7 +3,7 @@
  */
 
 import { API_ROUTES } from './constants';
-import { ApiResponse } from '@/types';
+import { ApiResponse, BackupCsvPayload } from '@/types';
 
 // Use relative URLs in the browser to avoid hard-coding localhost/production domains.
 // On the server (SSR or route handlers), fall back to NEXT_PUBLIC_APP_URL or localhost.
@@ -621,6 +621,11 @@ export const api = {
       method: 'PUT',
       body: JSON.stringify({ key, value }),
     });
+  },
+
+  /** Admin only: full backup as CSV (lessons, payments, special notes – names only, no IDs) */
+  async getFullBackup() {
+    return apiRequest<BackupCsvPayload>(API_ROUTES.BACKUP, { method: 'GET' });
   },
 
   // Special Lesson Notes

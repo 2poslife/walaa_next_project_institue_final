@@ -220,3 +220,8 @@ export interface LessonFilters {
   limit?: number;
 }
 
+// Full backup export – CSV format (admin)
+export interface BackupCsvPayload {
+  csv: string;
+}
+
