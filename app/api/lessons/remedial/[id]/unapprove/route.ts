@@ -42,39 +42,17 @@ export async function POST(
       return successResponse({}, 'Remedial lesson is already not approved');
     }
 
-    // Unapprove lesson and unlock the price to allow recalculation
+    // Unapprove lesson (price remains fixed for remedial lessons)
     const { error: updateError } = await supabaseAdmin
       .from('remedial_lessons')
       .update({ 
         approved: false,
-        price_locked: false  // Unlock price when unapproved to allow recalculation
+        price_locked: true,
       })
       .eq('id', lessonId);
 
     if (updateError) {
       return errorResponse('Failed to unapprove remedial lesson');
-    }
-
-    // After unapproving, we need to recalculate costs for future lessons of this student
-    // because the count of approved lessons has changed
-    if (lesson.student_id) {
-      // Trigger recalculation for pending lessons of this student
-      const { data: pendingLessons } = await supabaseAdmin
-        .from('remedial_lessons')
-        .select('id, hours')
-        .eq('student_id', lesson.student_id)
-        .eq('approved', false)
-        .eq('price_locked', false);
-      
-      // Re-trigger by updating hours (this will trigger the cost calculation)
-      if (pendingLessons && pendingLessons.length > 0) {
-        for (const pendingLesson of pendingLessons) {
-          await supabaseAdmin
-            .from('remedial_lessons')
-            .update({ hours: pendingLesson.hours })
-            .eq('id', pendingLesson.id);
-        }
-      }
     }
 
     return successResponse({}, 'Remedial lesson unapproved successfully');

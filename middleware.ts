@@ -53,12 +53,16 @@ async function verifyTokenInMiddleware(token: string): Promise<JWTPayload> {
   const secret = new TextEncoder().encode(appConfig.jwt.secret);
   const { payload } = await jwtVerify(token, secret);
 
-  const userId = payload.userId;
+  // Supabase/JSON can return userId as number or string; normalize to number
+  const userId =
+    typeof payload.userId === 'number'
+      ? payload.userId
+      : parseInt(String(payload.userId), 10);
   const username = payload.username;
   const role = payload.role;
 
   if (
-    typeof userId !== 'number' ||
+    Number.isNaN(userId) ||
     typeof username !== 'string' ||
     typeof role !== 'string'
   ) {

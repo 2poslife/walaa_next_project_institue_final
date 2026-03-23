@@ -8,6 +8,8 @@ import {
   notFoundResponse,
 } from '@/lib/utils/api-response';
 
+const FIXED_REMEDIAL_COST = 135;
+
 async function getTeacherIdForUser(userId: number) {
   const { data: teacher } = await supabaseAdmin
     .from('teachers')
@@ -62,7 +64,7 @@ export async function PUT(
       return errorResponse('All fields are required');
     }
 
-    // Cost will be recalculated by trigger if price is not locked
+    // Keep remedial lessons on fixed cost
     const { data: updatedLesson, error: updateError } = await supabaseAdmin
       .from('remedial_lessons')
       .update({
@@ -70,6 +72,8 @@ export async function PUT(
         date,
         start_time: start_time || null,
         hours,
+        total_cost: FIXED_REMEDIAL_COST,
+        price_locked: true,
       })
       .eq('id', lessonId)
       .select()

@@ -19,8 +19,19 @@ export async function POST(request: NextRequest) {
     // Verify refresh token
     const payload = verifyRefreshToken(refreshToken);
 
+    // Normalize payload (Supabase/JSON may return userId as string)
+    const userId = typeof payload.userId === 'number' ? payload.userId : parseInt(String(payload.userId), 10);
+    if (Number.isNaN(userId) || !payload.username || !payload.role) {
+      return unauthorizedResponse('Invalid or expired refresh token');
+    }
+    const normalizedPayload = {
+      userId,
+      username: String(payload.username),
+      role: payload.role,
+    };
+
     // Generate new access token
-    const accessToken = generateAccessToken(payload);
+    const accessToken = generateAccessToken(normalizedPayload);
 
     return successResponse(
       { accessToken },

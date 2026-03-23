@@ -38,47 +38,17 @@ export async function POST(
       return successResponse({}, 'Remedial lesson already approved');
     }
 
-    // Approve lesson and lock the price to prevent recalculation
+    // Approve lesson (price remains fixed for remedial lessons)
     const { error: updateError } = await supabaseAdmin
       .from('remedial_lessons')
       .update({ 
         approved: true,
-        price_locked: true  // Lock price when approved to prevent future price changes
+        price_locked: true,
       })
       .eq('id', lessonId);
 
     if (updateError) {
       return errorResponse('Failed to approve remedial lesson');
-    }
-
-    // After approving, we need to recalculate costs for future lessons of this student
-    // because the count of approved lessons has changed
-    const { data: currentLesson } = await supabaseAdmin
-      .from('remedial_lessons')
-      .select('student_id')
-      .eq('id', lessonId)
-      .single();
-
-    if (currentLesson) {
-      // Trigger recalculation for pending lessons of this student
-      // The trigger will automatically recalculate based on new approved count
-      // We'll update a non-critical field to trigger the cost recalculation
-      const { data: pendingLessons } = await supabaseAdmin
-        .from('remedial_lessons')
-        .select('id, hours')
-        .eq('student_id', currentLesson.student_id)
-        .eq('approved', false)
-        .eq('price_locked', false);
-      
-      // Re-trigger by updating hours (this will trigger the cost calculation)
-      if (pendingLessons && pendingLessons.length > 0) {
-        for (const pendingLesson of pendingLessons) {
-          await supabaseAdmin
-            .from('remedial_lessons')
-            .update({ hours: pendingLesson.hours })
-            .eq('id', pendingLesson.id);
-        }
-      }
     }
 
     return successResponse({}, 'Remedial lesson approved successfully');

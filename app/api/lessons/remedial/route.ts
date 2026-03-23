@@ -14,6 +14,8 @@ import {
 } from '@/lib/utils/lesson-submission-deadline';
 import { LessonFilters } from '@/types';
 
+const FIXED_REMEDIAL_COST = 135;
+
 export async function GET(request: NextRequest) {
   try {
     const user = getUserFromRequest(request);
@@ -142,7 +144,7 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Cost will be calculated by trigger (135 or 120 based on student's lesson count)
+    // Remedial lessons use a fixed cost (no count-based logic)
     const { data: lesson, error } = await supabaseAdmin
       .from('remedial_lessons')
       .insert({
@@ -151,6 +153,8 @@ export async function POST(request: NextRequest) {
         date,
         start_time: start_time || null,
         hours,
+        total_cost: FIXED_REMEDIAL_COST,
+        price_locked: true,
         approved: false, // Default to pending
       })
       .select()

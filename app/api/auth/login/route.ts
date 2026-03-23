@@ -47,10 +47,16 @@ export async function POST(request: NextRequest) {
       teacher = teacherData;
     }
 
+    // Ensure userId is number (Supabase can return id as string for new rows)
+    const userId = typeof user.id === 'number' ? user.id : parseInt(String(user.id), 10);
+    if (Number.isNaN(userId)) {
+      return errorResponse('Invalid user data');
+    }
+
     // Generate tokens
     const tokens = generateTokenPair({
-      userId: user.id,
-      username: user.username,
+      userId,
+      username: String(user.username),
       role: user.role,
     });
 
@@ -58,8 +64,8 @@ export async function POST(request: NextRequest) {
       accessToken: tokens.accessToken,
       refreshToken: tokens.refreshToken,
       user: {
-        id: user.id,
-        username: user.username,
+        id: userId,
+        username: String(user.username),
         role: user.role,
         is_active: user.is_active,
       },
