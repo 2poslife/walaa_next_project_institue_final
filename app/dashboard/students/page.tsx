@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { api, getAuthToken } from '@/lib/api-client';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
@@ -44,6 +44,58 @@ export default function StudentsPage() {
   const { isAuthenticated, loading: authLoading, isAdmin, isTeacher } = useAuth();
   const canManageStudents = isAdmin || isTeacher;
   const [teachersCanAddStudents, setTeachersCanAddStudents] = useState(true);
+
+  const selectedEducationLevel = useMemo(
+    () => educationLevels.find((level) => level.id.toString() === formData.education_level_id),
+    [educationLevels, formData.education_level_id]
+  );
+
+  const classOptions = useMemo(() => {
+    const defaultOption = [{ value: '', label: 'اختر الصف' }];
+    const levelName = (selectedEducationLevel?.name_ar || selectedEducationLevel?.name_en || '').toLowerCase();
+
+    if (!levelName) return defaultOption;
+
+    if (levelName.includes('ابتد')) {
+      return [
+        ...defaultOption,
+        { value: 'أول', label: 'أول' },
+        { value: 'ثاني', label: 'ثاني' },
+        { value: 'ثالث', label: 'ثالث' },
+        { value: 'رابع', label: 'رابع' },
+        { value: 'خامس', label: 'خامس' },
+        { value: 'سادس', label: 'سادس' },
+      ];
+    }
+
+    if (levelName.includes('اعداد') || levelName.includes('إعداد')) {
+      return [
+        ...defaultOption,
+        { value: 'سابع', label: 'سابع' },
+        { value: 'ثامن', label: 'ثامن' },
+        { value: 'تاسع', label: 'تاسع' },
+      ];
+    }
+
+    if (levelName.includes('ثانو') || levelName.includes('ثان')) {
+      return [
+        ...defaultOption,
+        { value: 'عاشر', label: 'عاشر' },
+        { value: 'حادي عشر', label: 'حادي عشر' },
+        { value: 'ثاني عشر', label: 'ثاني عشر' },
+      ];
+    }
+
+    if (levelName.includes('جامع')) {
+      return [
+        ...defaultOption,
+        { value: 'جامعي', label: 'جامعي' },
+        { value: 'ما بعد الثانوي', label: 'ما بعد الثانوي' },
+      ];
+    }
+
+    return defaultOption;
+  }, [selectedEducationLevel]);
 
   useEffect(() => {
     if (isTeacher && !isAdmin) {
@@ -514,8 +566,16 @@ export default function StudentsPage() {
                   label="المستوى التعليمي"
                   value={formData.education_level_id}
                   onChange={(e) => {
-                    setFormData({ ...formData, education_level_id: e.target.value });
-                    setFieldErrors((prev) => ({ ...prev, education_level_id: undefined }));
+                    setFormData({
+                      ...formData,
+                      education_level_id: e.target.value,
+                      class: '',
+                    });
+                    setFieldErrors((prev) => ({
+                      ...prev,
+                      education_level_id: undefined,
+                      class: undefined,
+                    }));
                   }}
                   options={[
                     { value: '', label: 'اختر المستوى التعليمي' },
@@ -546,19 +606,7 @@ export default function StudentsPage() {
                     setFormData({ ...formData, class: e.target.value });
                     setFieldErrors((prev) => ({ ...prev, class: undefined }));
                   }}
-                  options={[
-                    { value: '', label: 'اختر الصف' },
-                  { value: 'أول', label: 'أول' },
-                  { value: 'ثاني', label: 'ثاني' },
-                  { value: 'ثالث', label: 'ثالث' },
-                  { value: 'رابع', label: 'رابع' },
-                  { value: 'خامس', label: 'خامس' },
-                  { value: 'سادس', label: 'سادس' },
-                  { value: 'سابع', label: 'سابع' },
-                  { value: 'ثامن', label: 'ثامن' },
-                  { value: 'تاسع', label: 'تاسع' },
-                  { value: 'عاشر', label: 'عاشر' },
-                ]}
+                  options={classOptions}
                   required
                 />
                 {fieldErrors.class && (
