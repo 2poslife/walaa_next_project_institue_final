@@ -32,3 +32,4 @@ export async function GET(request: NextRequest) {
     return errorResponse('An error occurred while fetching education levels');
   }
 }
+

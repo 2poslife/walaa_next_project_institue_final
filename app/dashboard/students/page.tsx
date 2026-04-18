@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { api, getAuthToken } from '@/lib/api-client';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
@@ -56,6 +56,17 @@ export default function StudentsPage() {
     [selectedEducationLevel]
   );
 
+  const logAllEducationLevelsOnDropdownClick = useCallback((where: string) => {
+    console.log(`[Students] education levels (${where})`, {
+      count: educationLevels.length,
+      levels: educationLevels.map((l) => ({
+        id: l.id,
+        name_ar: l.name_ar,
+        name_en: l.name_en,
+      })),
+    });
+  }, [educationLevels]);
+
   useEffect(() => {
     if (isTeacher && !isAdmin) {
       // Load settings to check if teachers can add students
@@ -98,18 +109,7 @@ export default function StudentsPage() {
       console.log('Students response:', studentsRes);
       console.log('Education levels response:', levelsRes);
 
-      if (studentsRes.success && studentsRes.data) {
-        setStudents(studentsRes.data as Student[]);
-      } else {
-        console.error('Failed to load students:', studentsRes);
-        const isAuthError =
-          studentsRes?.error?.includes('Session expired') ||
-          studentsRes?.error?.includes('Authentication required');
-        if (isAuthError) {
-          return;
-        }
-      }
-
+      // Apply education levels first so a students-only auth early-return cannot leave a stale dropdown
       if (levelsRes && levelsRes.success && levelsRes.data) {
         console.log('Education levels data:', levelsRes.data);
         if (Array.isArray(levelsRes.data)) {
@@ -143,6 +143,18 @@ export default function StudentsPage() {
         setError(errorMsg);
         if (educationLevels.length === 0) {
           setEducationLevels([]);
+        }
+      }
+
+      if (studentsRes.success && studentsRes.data) {
+        setStudents(studentsRes.data as Student[]);
+      } else {
+        console.error('Failed to load students:', studentsRes);
+        const isAuthError =
+          studentsRes?.error?.includes('Session expired') ||
+          studentsRes?.error?.includes('Authentication required');
+        if (isAuthError) {
+          return;
         }
       }
     } catch (error: any) {
@@ -188,6 +200,38 @@ export default function StudentsPage() {
     loadData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAuthenticated, authLoading]);
+
+  // Refetch education levels whenever the add/edit form opens (avoids stale list e.g. after new levels in DB)
+  useEffect(() => {
+    if (!showForm || !isAuthenticated || authLoading || loading) {
+      return;
+    }
+    const token = getAuthToken();
+    if (!token) return;
+
+    let cancelled = false;
+    (async () => {
+      try {
+        const levelsRes = await api.getEducationLevels();
+        if (cancelled) return;
+        if (levelsRes.success && levelsRes.data && Array.isArray(levelsRes.data)) {
+          setEducationLevels(levelsRes.data as EducationLevel[]);
+        }
+      } catch (error: any) {
+        if (
+          error?.status !== 401 &&
+          !error?.message?.includes('expired') &&
+          !error?.message?.includes('Authentication')
+        ) {
+          console.error('Error reloading education levels:', error);
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [showForm, isAuthenticated, authLoading, loading]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -428,10 +472,12 @@ export default function StudentsPage() {
 
   return (
     <div dir="rtl" className="space-y-6">
-      <div className="flex justify-between items-center mb-6 flex-wrap gap-3">
+      <div className="flex justify-between items-center mb-6">
         <h1 className="text-3xl font-bold text-gray-900">الطلاب</h1>
         {canManageStudents && !showForm && (isAdmin || teachersCanAddStudents) && (
-          <Button onClick={() => setShowForm(true)}>إضافة طالب جديد</Button>
+          <Button onClick={() => setShowForm(true)}>
+            إضافة طالب جديد
+          </Button>
         )}
       </div>
 
@@ -486,6 +532,7 @@ export default function StudentsPage() {
                 <Select
                   label="المستوى التعليمي"
                   value={formData.education_level_id}
+                  onMouseDown={() => logAllEducationLevelsOnDropdownClick('add-student-form')}
                   onChange={(e) => {
                     setFormData({
                       ...formData,
@@ -577,6 +624,7 @@ export default function StudentsPage() {
           <Select
             label="المستوى التعليمي"
             value={filters.education_level_id}
+            onMouseDown={() => logAllEducationLevelsOnDropdownClick('filter')}
             onChange={(e) =>
               setFilters((prev) => ({
                 ...prev,
