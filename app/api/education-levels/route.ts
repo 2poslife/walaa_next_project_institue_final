@@ -24,7 +24,9 @@ export async function GET(request: NextRequest) {
       return errorResponse('Failed to fetch education levels');
     }
 
-    return successResponse(levels);
+    const res = successResponse(levels);
+    res.headers.set('Cache-Control', 'no-store, max-age=0, must-revalidate');
+    return res;
   } catch (error) {
     console.error('Get education levels error:', error);
     return errorResponse('An error occurred while fetching education levels');
