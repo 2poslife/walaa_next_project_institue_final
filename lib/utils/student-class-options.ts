@@ -14,10 +14,6 @@ export function getStudentClassSelectOptions(
     return [PLACEHOLDER];
   }
 
-  if (levelName.includes('بستان') || levelName.includes('روض')) {
-    return [PLACEHOLDER, { value: 'بستان', label: 'بستان' }];
-  }
-
   if (levelName.includes('ابتد')) {
     return [
       PLACEHOLDER,
