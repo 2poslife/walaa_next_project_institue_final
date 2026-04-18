@@ -9,8 +9,6 @@ import { supabaseAdmin } from '@/lib/supabase';
 import { getUserFromRequest } from '@/lib/utils/get-user-from-request';
 import { successResponse, errorResponse, unauthorizedResponse } from '@/lib/utils/api-response';
 
-export const dynamic = 'force-dynamic';
-
 export interface DuesSummaryRow {
   student_id: number;
   student_name: string;

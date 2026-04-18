@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { api, getAuthToken } from '@/lib/api-client';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
@@ -10,7 +10,6 @@ import { Select } from '@/components/ui/Select';
 import { Modal } from '@/components/ui/Modal';
 import { Student, EducationLevel } from '@/types';
 import { useAuth } from '@/contexts/AuthContext';
-import { getStudentClassSelectOptions } from '@/lib/utils/student-class-options';
 
 export default function StudentsPage() {
   const [students, setStudents] = useState<Student[]>([]);
@@ -51,21 +50,52 @@ export default function StudentsPage() {
     [educationLevels, formData.education_level_id]
   );
 
-  const classOptions = useMemo(
-    () => getStudentClassSelectOptions(selectedEducationLevel),
-    [selectedEducationLevel]
-  );
+  const classOptions = useMemo(() => {
+    const defaultOption = [{ value: '', label: 'اختر الصف' }];
+    const levelName = (selectedEducationLevel?.name_ar || selectedEducationLevel?.name_en || '').toLowerCase();
 
-  const logAllEducationLevelsOnDropdownClick = useCallback((where: string) => {
-    console.log(`[Students] education levels (${where})`, {
-      count: educationLevels.length,
-      levels: educationLevels.map((l) => ({
-        id: l.id,
-        name_ar: l.name_ar,
-        name_en: l.name_en,
-      })),
-    });
-  }, [educationLevels]);
+    if (!levelName) return defaultOption;
+
+    if (levelName.includes('ابتد')) {
+      return [
+        ...defaultOption,
+        { value: 'أول', label: 'أول' },
+        { value: 'ثاني', label: 'ثاني' },
+        { value: 'ثالث', label: 'ثالث' },
+        { value: 'رابع', label: 'رابع' },
+        { value: 'خامس', label: 'خامس' },
+        { value: 'سادس', label: 'سادس' },
+      ];
+    }
+
+    if (levelName.includes('اعداد') || levelName.includes('إعداد')) {
+      return [
+        ...defaultOption,
+        { value: 'سابع', label: 'سابع' },
+        { value: 'ثامن', label: 'ثامن' },
+        { value: 'تاسع', label: 'تاسع' },
+      ];
+    }
+
+    if (levelName.includes('ثانو') || levelName.includes('ثان')) {
+      return [
+        ...defaultOption,
+        { value: 'عاشر', label: 'عاشر' },
+        { value: 'حادي عشر', label: 'حادي عشر' },
+        { value: 'ثاني عشر', label: 'ثاني عشر' },
+      ];
+    }
+
+    if (levelName.includes('جامع')) {
+      return [
+        ...defaultOption,
+        { value: 'جامعي', label: 'جامعي' },
+        { value: 'ما بعد الثانوي', label: 'ما بعد الثانوي' },
+      ];
+    }
+
+    return defaultOption;
+  }, [selectedEducationLevel]);
 
   useEffect(() => {
     if (isTeacher && !isAdmin) {
@@ -109,7 +139,20 @@ export default function StudentsPage() {
       console.log('Students response:', studentsRes);
       console.log('Education levels response:', levelsRes);
 
-      // Apply education levels first so a students-only auth early-return cannot leave a stale dropdown
+      if (studentsRes.success && studentsRes.data) {
+        setStudents(studentsRes.data as Student[]);
+      } else {
+        console.error('Failed to load students:', studentsRes);
+        // Check if it's an authentication error
+        const isAuthError = studentsRes?.error?.includes('Session expired') ||
+                           studentsRes?.error?.includes('Authentication required');
+        if (isAuthError) {
+          // Authentication error - tokens are already cleared
+          // Don't set error, just return and let DashboardLayout handle redirect
+          return;
+        }
+      }
+      
       if (levelsRes && levelsRes.success && levelsRes.data) {
         console.log('Education levels data:', levelsRes.data);
         if (Array.isArray(levelsRes.data)) {
@@ -127,34 +170,27 @@ export default function StudentsPage() {
       } else {
         console.error('Failed to load education levels. Response:', levelsRes);
         const errorMsg = levelsRes?.error || 'فشل تحميل المستويات التعليمية';
-
-        const isLevelsAuthError =
-          errorMsg.includes('refresh token') ||
-          errorMsg.includes('expired') ||
-          errorMsg.includes('Invalid') ||
-          errorMsg.includes('Session expired') ||
-          errorMsg.includes('Authentication required');
-
-        if (isLevelsAuthError) {
+        
+        // Check if it's an authentication error (session expired, expired token, etc.)
+        const isAuthError = errorMsg.includes('refresh token') || 
+                           errorMsg.includes('expired') || 
+                           errorMsg.includes('Invalid') ||
+                           errorMsg.includes('Session expired') ||
+                           errorMsg.includes('Authentication required');
+        
+        if (isAuthError) {
+          // Authentication error - tokens are already cleared by API client
+          // AuthContext will update and DashboardLayout will redirect
+          // Don't set error message or update state
           console.log('Authentication error detected, waiting for redirect');
           return;
         }
-
+        
+        // Only set error for non-authentication errors
         setError(errorMsg);
+        // Don't set empty array, keep previous state if any
         if (educationLevels.length === 0) {
           setEducationLevels([]);
-        }
-      }
-
-      if (studentsRes.success && studentsRes.data) {
-        setStudents(studentsRes.data as Student[]);
-      } else {
-        console.error('Failed to load students:', studentsRes);
-        const isAuthError =
-          studentsRes?.error?.includes('Session expired') ||
-          studentsRes?.error?.includes('Authentication required');
-        if (isAuthError) {
-          return;
         }
       }
     } catch (error: any) {
@@ -201,37 +237,34 @@ export default function StudentsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAuthenticated, authLoading]);
 
-  // Refetch education levels whenever the add/edit form opens (avoids stale list e.g. after new levels in DB)
+  // Reload education levels when form is shown to ensure fresh data
   useEffect(() => {
-    if (!showForm || !isAuthenticated || authLoading || loading) {
-      return;
-    }
-    const token = getAuthToken();
-    if (!token) return;
-
-    let cancelled = false;
-    (async () => {
-      try {
-        const levelsRes = await api.getEducationLevels();
-        if (cancelled) return;
-        if (levelsRes.success && levelsRes.data && Array.isArray(levelsRes.data)) {
-          setEducationLevels(levelsRes.data as EducationLevel[]);
-        }
-      } catch (error: any) {
-        if (
-          error?.status !== 401 &&
-          !error?.message?.includes('expired') &&
-          !error?.message?.includes('Authentication')
-        ) {
-          console.error('Error reloading education levels:', error);
-        }
+    if (showForm && educationLevels.length === 0 && !loading && isAuthenticated) {
+      console.log('Form shown but no education levels, reloading...');
+      const token = getAuthToken();
+      if (!token) {
+        return;
       }
-    })();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [showForm, isAuthenticated, authLoading, loading]);
+      const loadLevels = async () => {
+        try {
+          const levelsRes = await api.getEducationLevels();
+          console.log('Education levels reload response:', levelsRes);
+          if (levelsRes.success && levelsRes.data && Array.isArray(levelsRes.data)) {
+            setEducationLevels(levelsRes.data);
+          } else if (levelsRes?.error?.includes('Session expired') || levelsRes?.error?.includes('Authentication')) {
+            // Authentication error - don't do anything, let DashboardLayout handle redirect
+            return;
+          }
+        } catch (error: any) {
+          // Only log if it's not an authentication error
+          if (error?.status !== 401 && !error?.message?.includes('expired') && !error?.message?.includes('Authentication')) {
+            console.error('Error reloading education levels:', error);
+          }
+        }
+      };
+      loadLevels();
+    }
+  }, [showForm, educationLevels.length, loading, isAuthenticated]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -532,7 +565,6 @@ export default function StudentsPage() {
                 <Select
                   label="المستوى التعليمي"
                   value={formData.education_level_id}
-                  onMouseDown={() => logAllEducationLevelsOnDropdownClick('add-student-form')}
                   onChange={(e) => {
                     setFormData({
                       ...formData,
@@ -624,7 +656,6 @@ export default function StudentsPage() {
           <Select
             label="المستوى التعليمي"
             value={filters.education_level_id}
-            onMouseDown={() => logAllEducationLevelsOnDropdownClick('filter')}
             onChange={(e) =>
               setFilters((prev) => ({
                 ...prev,

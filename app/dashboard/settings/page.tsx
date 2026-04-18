@@ -5,7 +5,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
-import { api, fetchFullBackupGzip } from '@/lib/api-client';
+import { api } from '@/lib/api-client';
 
 interface AppSettings {
   teachers_can_add_students?: boolean;
@@ -22,8 +22,6 @@ export default function SettingsPage() {
   const [success, setSuccess] = useState<string | null>(null);
   const [backupLoading, setBackupLoading] = useState(false);
   const [backupError, setBackupError] = useState<string | null>(null);
-  const [backupGzipLoading, setBackupGzipLoading] = useState(false);
-  const [backupGzipError, setBackupGzipError] = useState<string | null>(null);
 
   useEffect(() => {
     loadSettings();
@@ -109,32 +107,6 @@ export default function SettingsPage() {
       setBackupError(err?.message || 'حدث خطأ أثناء تحميل النسخة الاحتياطية');
     } finally {
       setBackupLoading(false);
-    }
-  };
-
-  const downloadBackupGzip = async () => {
-    if (!isAdmin) return;
-    setBackupGzipError(null);
-    setBackupGzipLoading(true);
-    try {
-      const result = await fetchFullBackupGzip();
-      if (!result.ok) {
-        setBackupGzipError(result.error || 'فشل إنشاء الملف المضغوط');
-        return;
-      }
-      const url = URL.createObjectURL(result.blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = result.filename;
-      link.style.visibility = 'hidden';
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      URL.revokeObjectURL(url);
-    } catch (err: any) {
-      setBackupGzipError(err?.message || 'حدث خطأ أثناء تحميل النسخة المضغوطة');
-    } finally {
-      setBackupGzipLoading(false);
     }
   };
 
@@ -246,26 +218,16 @@ export default function SettingsPage() {
       {isAdmin && (
         <Card title="نسخ احتياطي للبيانات" variant="elevated" className="mb-6">
           <p className="text-sm text-gray-600 mb-4">
-            تحميل ملف يحتوي على جميع الدروس (مع أسماء المعلمين والطلاب)، المدفوعات، وملاحظات الدروس الخاصة — إما CSV أو نسخة مضغوطة (.csv.gz) بحجم أصغر. احتفظ بالملف في مكان آمن.
+            تحميل ملف JSON يحتوي على جميع الدروس (مع أسماء المعلمين والطلاب)، المدفوعات، وملاحظات الدروس الخاصة. احتفظ بالملف في مكان آمن في حال تعطل قاعدة البيانات.
           </p>
           {backupError && (
             <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
               {backupError}
             </div>
           )}
-          {backupGzipError && (
-            <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
-              {backupGzipError}
-            </div>
-          )}
-          <div className="flex flex-wrap gap-3">
-            <Button onClick={downloadBackup} disabled={backupLoading || backupGzipLoading}>
-              {backupLoading ? 'جاري إنشاء الملف...' : 'تحميل نسخة احتياطية (.csv)'}
-            </Button>
-            <Button onClick={downloadBackupGzip} disabled={backupGzipLoading || backupLoading} variant="secondary">
-              {backupGzipLoading ? 'جاري إنشاء الملف...' : 'تحميل نسخة مضغوطة (.csv.gz)'}
-            </Button>
-          </div>
+          <Button onClick={downloadBackup} disabled={backupLoading}>
+            {backupLoading ? 'جاري إنشاء الملف...' : 'تحميل نسخة احتياطية كاملة'}
+          </Button>
         </Card>
       )}
     </div>
