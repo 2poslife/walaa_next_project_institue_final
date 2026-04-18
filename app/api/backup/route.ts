@@ -1,10 +1,10 @@
 /**
  * GET /api/backup - Export full backup as CSV (admin only)
- * One file with sections: Lessons (with teacher/student names), Payments, Special notes.
- * No IDs - only important columns for readability and backup.
+ * Optional: ?gzip=1 returns application/gzip (same data, smaller file).
  */
 
-import { NextRequest } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
+import { gzipSync } from 'zlib';
 import { supabaseAdmin } from '@/lib/supabase';
 import { getUserFromRequest } from '@/lib/utils/get-user-from-request';
 import { successResponse, errorResponse, unauthorizedResponse } from '@/lib/utils/api-response';
@@ -34,7 +34,14 @@ function levelName(edu: any): string {
   return (edu.name_ar || edu.name_en || '') as string;
 }
 
-const PAGE_SIZE = 1000; // Supabase/PostgREST default max; we paginate to get all
+function backupDumpFilenameGz(now: Date = new Date()): string {
+  const dd = String(now.getDate()).padStart(2, '0');
+  const mm = String(now.getMonth() + 1).padStart(2, '0');
+  const yy = String(now.getFullYear()).slice(-2);
+  return `dump${dd}${mm}${yy}.csv.gz`;
+}
+
+const PAGE_SIZE = 1000;
 
 async function fetchAll<T>(
   table: string,
@@ -69,6 +76,8 @@ export async function GET(request: NextRequest) {
       return unauthorizedResponse('Admin access required');
     }
 
+    const wantGzip = request.nextUrl.searchParams.get('gzip') === '1';
+
     const individualSelect = `
         *,
         teacher:teachers(id, full_name, phone),
@@ -91,7 +100,6 @@ export async function GET(request: NextRequest) {
     const paymentSelect = `*, student:students(id, full_name, parent_contact)`;
     const notesSelect = `*, teacher:teachers(id, full_name, phone), education_level:education_levels(id, name_ar, name_en)`;
 
-    // 1) Individual lessons (paginated – Supabase returns max 1000 per request)
     const { data: individualLessons, error: errInd } = await fetchAll<any>(
       'individual_lessons',
       individualSelect,
@@ -103,7 +111,6 @@ export async function GET(request: NextRequest) {
       return errorResponse('Failed to export individual lessons');
     }
 
-    // 2) Group lessons (paginated)
     const { data: groupLessonsRaw, error: errGrp } = await fetchAll<any>(
       'group_lessons',
       groupSelect,
@@ -116,7 +123,6 @@ export async function GET(request: NextRequest) {
     }
     const groupLessons = (groupLessonsRaw || []).map(normalizeGroupLesson);
 
-    // 3) Remedial lessons (paginated)
     const { data: remedialLessons, error: errRem } = await fetchAll<any>(
       'remedial_lessons',
       remedialSelect,
@@ -128,7 +134,6 @@ export async function GET(request: NextRequest) {
       return errorResponse('Failed to export remedial lessons');
     }
 
-    // 4) Payments (paginated)
     const { data: payments, error: errPay } = await fetchAll<any>(
       'payments',
       paymentSelect,
@@ -140,7 +145,6 @@ export async function GET(request: NextRequest) {
       return errorResponse('Failed to export payments');
     }
 
-    // 5) Special lesson notes (paginated)
     const { data: notes, error: errNotes } = await fetchAll<any>(
       'special_lesson_notes',
       notesSelect,
@@ -172,7 +176,6 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // --- Build CSV ---
     const lessonHeaders = [
       'نوع الدرس',
       'التاريخ',
@@ -191,7 +194,6 @@ export async function GET(request: NextRequest) {
     const noteHeaders = ['التاريخ', 'المعلم', 'الطلاب', 'المستوى', 'ملاحظة المعلم', 'ملاحظة الإدارة', 'مقروء', 'تاريخ الإنشاء'];
 
     const lessonRows: string[] = [csvRow(lessonHeaders)];
-
     const toYesNo = (v: boolean | null | undefined) => (v ? 'نعم' : 'لا');
 
     (individualLessons || []).forEach((row: any) => {
@@ -294,6 +296,19 @@ export async function GET(request: NextRequest) {
     ];
     const fullCsv = sections.map(([title, body]) => title + '\r\n' + body).join('\r\n\r\n');
     const withBom = '\uFEFF' + fullCsv;
+
+    if (wantGzip) {
+      const buf = gzipSync(Buffer.from(withBom, 'utf8'));
+      const name = backupDumpFilenameGz();
+      return new NextResponse(buf, {
+        status: 200,
+        headers: {
+          'Content-Type': 'application/gzip',
+          'Content-Disposition': `attachment; filename="${name}"`,
+          'Cache-Control': 'no-store',
+        },
+      });
+    }
 
     return successResponse({ csv: withBom });
   } catch (error) {

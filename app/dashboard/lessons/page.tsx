@@ -27,6 +27,7 @@ import {
   getLessonSubmissionDeadlineMessage,
   type LessonDeadlineConfig,
 } from '@/lib/utils/lesson-submission-deadline';
+import { getStudentClassSelectOptions } from '@/lib/utils/student-class-options';
 
 type LessonTab = 'individual' | 'group' | 'remedial';
 
@@ -150,6 +151,15 @@ export default function LessonsPage() {
     class?: string;
   }>({});
   const [studentSubmitting, setStudentSubmitting] = useState(false);
+
+  const studentModalEducationLevel = useMemo(
+    () => educationLevels.find((l) => l.id.toString() === studentFormData.education_level_id),
+    [educationLevels, studentFormData.education_level_id]
+  );
+  const studentModalClassOptions = useMemo(
+    () => getStudentClassSelectOptions(studentModalEducationLevel),
+    [studentModalEducationLevel]
+  );
 
   // Delete confirmation modal state
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
@@ -2758,8 +2768,16 @@ export default function LessonsPage() {
               label="المستوى التعليمي"
               value={studentFormData.education_level_id}
               onChange={(e) => {
-                setStudentFormData({ ...studentFormData, education_level_id: e.target.value });
-                setStudentFieldErrors((prev) => ({ ...prev, education_level_id: undefined }));
+                setStudentFormData({
+                  ...studentFormData,
+                  education_level_id: e.target.value,
+                  class: '',
+                });
+                setStudentFieldErrors((prev) => ({
+                  ...prev,
+                  education_level_id: undefined,
+                  class: undefined,
+                }));
               }}
               options={[
                 { value: '', label: 'اختر المستوى التعليمي' },
@@ -2781,19 +2799,7 @@ export default function LessonsPage() {
                 setStudentFormData({ ...studentFormData, class: e.target.value });
                 setStudentFieldErrors((prev) => ({ ...prev, class: undefined }));
               }}
-              options={[
-                { value: '', label: 'اختر الصف' },
-                { value: 'أول', label: 'أول' },
-                { value: 'ثاني', label: 'ثاني' },
-                { value: 'ثالث', label: 'ثالث' },
-                { value: 'رابع', label: 'رابع' },
-                { value: 'خامس', label: 'خامس' },
-                { value: 'سادس', label: 'سادس' },
-                { value: 'سابع', label: 'سابع' },
-                { value: 'ثامن', label: 'ثامن' },
-                { value: 'تاسع', label: 'تاسع' },
-                { value: 'عاشر', label: 'عاشر' },
-              ]}
+              options={studentModalClassOptions}
               required
             />
             {studentFieldErrors.class && (

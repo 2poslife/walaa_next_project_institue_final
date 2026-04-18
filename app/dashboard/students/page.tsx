@@ -10,6 +10,7 @@ import { Select } from '@/components/ui/Select';
 import { Modal } from '@/components/ui/Modal';
 import { Student, EducationLevel } from '@/types';
 import { useAuth } from '@/contexts/AuthContext';
+import { getStudentClassSelectOptions } from '@/lib/utils/student-class-options';
 
 export default function StudentsPage() {
   const [students, setStudents] = useState<Student[]>([]);
@@ -50,52 +51,10 @@ export default function StudentsPage() {
     [educationLevels, formData.education_level_id]
   );
 
-  const classOptions = useMemo(() => {
-    const defaultOption = [{ value: '', label: 'اختر الصف' }];
-    const levelName = (selectedEducationLevel?.name_ar || selectedEducationLevel?.name_en || '').toLowerCase();
-
-    if (!levelName) return defaultOption;
-
-    if (levelName.includes('ابتد')) {
-      return [
-        ...defaultOption,
-        { value: 'أول', label: 'أول' },
-        { value: 'ثاني', label: 'ثاني' },
-        { value: 'ثالث', label: 'ثالث' },
-        { value: 'رابع', label: 'رابع' },
-        { value: 'خامس', label: 'خامس' },
-        { value: 'سادس', label: 'سادس' },
-      ];
-    }
-
-    if (levelName.includes('اعداد') || levelName.includes('إعداد')) {
-      return [
-        ...defaultOption,
-        { value: 'سابع', label: 'سابع' },
-        { value: 'ثامن', label: 'ثامن' },
-        { value: 'تاسع', label: 'تاسع' },
-      ];
-    }
-
-    if (levelName.includes('ثانو') || levelName.includes('ثان')) {
-      return [
-        ...defaultOption,
-        { value: 'عاشر', label: 'عاشر' },
-        { value: 'حادي عشر', label: 'حادي عشر' },
-        { value: 'ثاني عشر', label: 'ثاني عشر' },
-      ];
-    }
-
-    if (levelName.includes('جامع')) {
-      return [
-        ...defaultOption,
-        { value: 'جامعي', label: 'جامعي' },
-        { value: 'ما بعد الثانوي', label: 'ما بعد الثانوي' },
-      ];
-    }
-
-    return defaultOption;
-  }, [selectedEducationLevel]);
+  const classOptions = useMemo(
+    () => getStudentClassSelectOptions(selectedEducationLevel),
+    [selectedEducationLevel]
+  );
 
   useEffect(() => {
     if (isTeacher && !isAdmin) {

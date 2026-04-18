@@ -271,6 +271,51 @@ async function apiRequest<T>(
   return data;
 }
 
+/** Admin: download gzip backup (same data as CSV backup). Handles token refresh on 401. */
+export async function fetchFullBackupGzip(): Promise<
+  { ok: true; blob: Blob; filename: string } | { ok: false; error: string }
+> {
+  const endpoint = `${API_BASE_URL}${API_ROUTES.BACKUP}?gzip=1`;
+  const run = (token: string) =>
+    fetch(endpoint, { method: 'GET', headers: { Authorization: `Bearer ${token}` } });
+
+  let token = getAuthToken();
+  if (!token) return { ok: false, error: 'Authentication required' };
+
+  let res = await run(token);
+  if (res.status === 401) {
+    try {
+      token = await refreshAccessToken();
+      res = await run(token);
+    } catch {
+      return { ok: false, error: 'Session expired' };
+    }
+  }
+
+  if (res.status === 403) {
+    return { ok: false, error: 'غير مصرح' };
+  }
+  if (!res.ok) {
+    let msg = 'فشل التحميل';
+    try {
+      const text = await res.text();
+      const j = text ? JSON.parse(text) : {};
+      if (j.error) msg = j.error;
+    } catch {
+      /* ignore */
+    }
+    return { ok: false, error: msg };
+  }
+
+  const cd = res.headers.get('Content-Disposition');
+  let filename = 'backup.csv.gz';
+  const m = cd?.match(/filename="?([^";]+)"?/i);
+  if (m?.[1]) filename = m[1];
+
+  const blob = await res.blob();
+  return { ok: true, blob, filename };
+}
+
 /**
  * API client methods
  */
