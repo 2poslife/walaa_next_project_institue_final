@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { api, getAuthToken } from '@/lib/api-client';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
@@ -55,6 +55,17 @@ export default function StudentsPage() {
     () => getStudentClassSelectOptions(selectedEducationLevel),
     [selectedEducationLevel]
   );
+
+  const logAllEducationLevelsOnDropdownClick = useCallback((where: string) => {
+    console.log(`[Students] education levels (${where})`, {
+      count: educationLevels.length,
+      levels: educationLevels.map((l) => ({
+        id: l.id,
+        name_ar: l.name_ar,
+        name_en: l.name_en,
+      })),
+    });
+  }, [educationLevels]);
 
   useEffect(() => {
     if (isTeacher && !isAdmin) {
@@ -524,6 +535,7 @@ export default function StudentsPage() {
                 <Select
                   label="المستوى التعليمي"
                   value={formData.education_level_id}
+                  onMouseDown={() => logAllEducationLevelsOnDropdownClick('add-student-form')}
                   onChange={(e) => {
                     setFormData({
                       ...formData,
@@ -615,6 +627,7 @@ export default function StudentsPage() {
           <Select
             label="المستوى التعليمي"
             value={filters.education_level_id}
+            onMouseDown={() => logAllEducationLevelsOnDropdownClick('filter')}
             onChange={(e) =>
               setFilters((prev) => ({
                 ...prev,
