@@ -7,6 +7,8 @@ import {
   unauthorizedResponse,
 } from '@/lib/utils/api-response';
 
+export const dynamic = 'force-dynamic';
+
 export async function GET(request: NextRequest) {
   try {
     const user = getUserFromRequest(request);
