@@ -225,6 +225,37 @@ export default function StudentsPage() {
     }
   };
 
+  const refreshEducationLevels = async (reason: string) => {
+    const token = getAuthToken();
+    if (!token) return;
+
+    try {
+      console.log(`[StudentsPage] Refreshing education levels. reason=${reason}`);
+      const levelsRes = await api.getEducationLevels();
+      console.log(`[StudentsPage] Refresh result. reason=${reason}`, levelsRes);
+
+      if (levelsRes?.success && Array.isArray(levelsRes.data)) {
+        setEducationLevels(levelsRes.data as EducationLevel[]);
+        console.log(`[StudentsPage] Levels refreshed. reason=${reason}`, {
+          count: levelsRes.data.length,
+          values: levelsRes.data.map((level: any) => ({
+            id: level.id,
+            name_ar: level.name_ar,
+            name_en: level.name_en,
+          })),
+        });
+      }
+    } catch (error: any) {
+      if (
+        error?.status !== 401 &&
+        !error?.message?.includes('expired') &&
+        !error?.message?.includes('Authentication')
+      ) {
+        console.error(`[StudentsPage] Failed to refresh levels. reason=${reason}`, error);
+      }
+    }
+  };
+
   useEffect(() => {
     if (authLoading) {
       return;
@@ -244,34 +275,12 @@ export default function StudentsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAuthenticated, authLoading]);
 
-  // Reload education levels when form is shown to ensure fresh data
+  // Reload education levels whenever form is shown to ensure latest values
   useEffect(() => {
-    if (showForm && educationLevels.length === 0 && !loading && isAuthenticated) {
-      console.log('Form shown but no education levels, reloading...');
-      const token = getAuthToken();
-      if (!token) {
-        return;
-      }
-      const loadLevels = async () => {
-        try {
-          const levelsRes = await api.getEducationLevels();
-          console.log('Education levels reload response:', levelsRes);
-          if (levelsRes.success && levelsRes.data && Array.isArray(levelsRes.data)) {
-            setEducationLevels(levelsRes.data);
-          } else if (levelsRes?.error?.includes('Session expired') || levelsRes?.error?.includes('Authentication')) {
-            // Authentication error - don't do anything, let DashboardLayout handle redirect
-            return;
-          }
-        } catch (error: any) {
-          // Only log if it's not an authentication error
-          if (error?.status !== 401 && !error?.message?.includes('expired') && !error?.message?.includes('Authentication')) {
-            console.error('Error reloading education levels:', error);
-          }
-        }
-      };
-      loadLevels();
+    if (showForm && !loading && isAuthenticated) {
+      refreshEducationLevels('form-open');
     }
-  }, [showForm, educationLevels.length, loading, isAuthenticated]);
+  }, [showForm, loading, isAuthenticated]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -580,6 +589,7 @@ export default function StudentsPage() {
                         label: level.name_ar || level.name_en,
                       })),
                     });
+                    refreshEducationLevels('select-focus');
                   }}
                   onClick={() => {
                     console.log('[StudentsPage] Education level select clicked', {
