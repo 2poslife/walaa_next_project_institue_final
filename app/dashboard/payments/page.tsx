@@ -14,6 +14,7 @@ import { config } from '@/lib/config';
 import { useAuth } from '@/contexts/AuthContext';
 import { getTodayLocalDate, getFirstDayOfMonth, getLastDayOfMonth } from '@/lib/utils/date';
 import { downloadCSV, LessonExportRow } from '@/lib/utils/export';
+import { withBustanFallback } from '@/lib/utils/education-levels';
 
 interface StudentPaymentSummary {
   studentId: number;
@@ -128,7 +129,7 @@ export default function PaymentsPage() {
         setStudents(studentsRes.data);
       }
       if (levelsRes.success && Array.isArray(levelsRes.data)) {
-        setEducationLevels(levelsRes.data as EducationLevel[]);
+        setEducationLevels(withBustanFallback(levelsRes.data as EducationLevel[]));
       }
       if (tiersRes && tiersRes.success && tiersRes.data) {
         setGroupPricingTiers(tiersRes.data as GroupPricingTier[]);

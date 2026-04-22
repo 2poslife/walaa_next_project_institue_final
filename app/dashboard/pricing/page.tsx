@@ -11,6 +11,7 @@ import { Input } from '@/components/ui/Input';
 import { Select } from '@/components/ui/Select';
 import { Pricing, EducationLevel } from '@/types';
 import { useAuth } from '@/contexts/AuthContext';
+import { withBustanFallback } from '@/lib/utils/education-levels';
 
 export default function PricingPage() {
   const [pricing, setPricing] = useState<Pricing[]>([]);
@@ -41,7 +42,7 @@ export default function PricingPage() {
         setPricing(pricingRes.data as Pricing[]);
       }
       if (levelsRes.success && levelsRes.data) {
-        setEducationLevels(levelsRes.data as EducationLevel[]);
+        setEducationLevels(withBustanFallback(levelsRes.data as EducationLevel[]));
       }
     } catch (error) {
       console.error('Error loading data:', error);

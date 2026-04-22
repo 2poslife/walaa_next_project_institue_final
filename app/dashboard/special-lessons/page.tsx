@@ -14,6 +14,7 @@ import { SpecialLessonNote, Student, EducationLevel, Teacher } from '@/types';
 import { useAuth } from '@/contexts/AuthContext';
 import { getTodayLocalDate } from '@/lib/utils/date';
 import { LESSON_SUBMISSION_DEADLINE_DAY } from '@/lib/utils/lesson-submission-deadline';
+import { withBustanFallback } from '@/lib/utils/education-levels';
 
 export default function SpecialLessonsPage() {
   const { isAdmin, isTeacher, teacher } = useAuth();
@@ -82,7 +83,7 @@ export default function SpecialLessonsPage() {
         setStudents(studentsRes.data as Student[]);
       }
       if (levelsRes.success && levelsRes.data) {
-        setEducationLevels(levelsRes.data as EducationLevel[]);
+        setEducationLevels(withBustanFallback(levelsRes.data as EducationLevel[]));
       }
     } catch (error) {
       console.error('Error loading data:', error);

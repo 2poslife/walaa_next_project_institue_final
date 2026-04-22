@@ -12,6 +12,7 @@ import { IndividualLesson, GroupLesson, RemedialLesson, EducationLevel, Teacher 
 import { useAuth } from '@/contexts/AuthContext';
 import { downloadCSV, downloadCSVWithSummary, formatDateForFilename, LessonExportRow, StudentSummaryRow } from '@/lib/utils/export';
 import { formatLocalDate, getFirstDayOfMonth, getLastDayOfMonth } from '@/lib/utils/date';
+import { withBustanFallback } from '@/lib/utils/education-levels';
 
 interface PastLesson {
   id: string;
@@ -171,7 +172,7 @@ export default function StatisticsPage() {
         setError((prev) => prev || remedialRes.error || 'فشل في تحميل הוראה מתקנת');
       }
       if (levelsRes.success && Array.isArray(levelsRes.data)) {
-        setEducationLevels(levelsRes.data as EducationLevel[]);
+        setEducationLevels(withBustanFallback(levelsRes.data as EducationLevel[]));
       }
       if (teachersRes && teachersRes.success && Array.isArray(teachersRes.data)) {
         setTeachers(teachersRes.data as Teacher[]);

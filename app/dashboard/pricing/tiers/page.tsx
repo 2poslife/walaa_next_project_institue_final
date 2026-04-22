@@ -11,6 +11,7 @@ import { Select } from '@/components/ui/Select';
 import { GroupPricingTier, EducationLevel } from '@/types';
 import { useAuth } from '@/contexts/AuthContext';
 import { config } from '@/lib/config';
+import { withBustanFallback } from '@/lib/utils/education-levels';
 
 export default function GroupPricingTiersPage() {
   const router = useRouter();
@@ -47,7 +48,7 @@ export default function GroupPricingTiersPage() {
         api.getEducationLevels(),
       ]);
       if (tiersRes.success && tiersRes.data) setTiers(tiersRes.data as GroupPricingTier[]);
-      if (levelsRes.success && levelsRes.data) setEducationLevels(levelsRes.data as EducationLevel[]);
+      if (levelsRes.success && levelsRes.data) setEducationLevels(withBustanFallback(levelsRes.data as EducationLevel[]));
     } catch (e) {
       console.error('Error loading tiers:', e);
     } finally {

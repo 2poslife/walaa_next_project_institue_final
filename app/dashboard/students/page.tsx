@@ -10,6 +10,7 @@ import { Select } from '@/components/ui/Select';
 import { Modal } from '@/components/ui/Modal';
 import { Student, EducationLevel } from '@/types';
 import { useAuth } from '@/contexts/AuthContext';
+import { withBustanFallback } from '@/lib/utils/education-levels';
 
 export default function StudentsPage() {
   const [students, setStudents] = useState<Student[]>([]);
@@ -157,7 +158,7 @@ export default function StudentsPage() {
         console.log('Education levels data:', levelsRes.data);
         if (Array.isArray(levelsRes.data)) {
           if (levelsRes.data.length > 0) {
-            setEducationLevels(levelsRes.data as EducationLevel[]);
+            setEducationLevels(withBustanFallback(levelsRes.data as EducationLevel[]));
             console.log('[StudentsPage] Education levels set:', {
               count: levelsRes.data.length,
               values: levelsRes.data.map((level: any) => ({
@@ -235,7 +236,7 @@ export default function StudentsPage() {
       console.log(`[StudentsPage] Refresh result. reason=${reason}`, levelsRes);
 
       if (levelsRes?.success && Array.isArray(levelsRes.data)) {
-        setEducationLevels(levelsRes.data as EducationLevel[]);
+        setEducationLevels(withBustanFallback(levelsRes.data as EducationLevel[]));
         console.log(`[StudentsPage] Levels refreshed. reason=${reason}`, {
           count: levelsRes.data.length,
           values: levelsRes.data.map((level: any) => ({

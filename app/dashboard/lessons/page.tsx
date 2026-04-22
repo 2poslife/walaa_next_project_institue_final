@@ -27,6 +27,7 @@ import {
   getLessonSubmissionDeadlineMessage,
   type LessonDeadlineConfig,
 } from '@/lib/utils/lesson-submission-deadline';
+import { withBustanFallback } from '@/lib/utils/education-levels';
 
 type LessonTab = 'individual' | 'group' | 'remedial';
 
@@ -322,7 +323,7 @@ export default function LessonsPage() {
       }
 
       if (levelsRes.success && Array.isArray(levelsRes.data)) {
-        setEducationLevels(levelsRes.data as EducationLevel[]);
+        setEducationLevels(withBustanFallback(levelsRes.data as EducationLevel[]));
       }
 
       if (specialNotesRes?.success && Array.isArray(specialNotesRes.data)) {
@@ -357,7 +358,7 @@ export default function LessonsPage() {
         try {
           const levelsRes = await api.getEducationLevels();
           if (levelsRes.success && Array.isArray(levelsRes.data)) {
-            setEducationLevels(levelsRes.data as EducationLevel[]);
+            setEducationLevels(withBustanFallback(levelsRes.data as EducationLevel[]));
           }
         } catch (error) {
           console.error('Error refreshing education levels:', error);

@@ -17,6 +17,7 @@ import {
 } from '@/types';
 import { useAuth } from '@/contexts/AuthContext';
 import { getFirstDayOfMonth, getLastDayOfMonth } from '@/lib/utils/date';
+import { withBustanFallback } from '@/lib/utils/education-levels';
 
 const ITEMS_PER_PAGE = 10;
 const formatCurrency = (value: number) => `${value.toFixed(2)} ₪`;
@@ -105,7 +106,7 @@ export default function ReportsPage() {
         setStudents(studentsRes.data as Student[]);
       }
       if (levelsRes.success && Array.isArray(levelsRes.data)) {
-        setEducationLevels(levelsRes.data as EducationLevel[]);
+        setEducationLevels(withBustanFallback(levelsRes.data as EducationLevel[]));
       }
       if (config.app.groupPricingMode === 'tiers' && tiersRes?.success && Array.isArray(tiersRes.data)) {
         setGroupPricingTiers(tiersRes.data as GroupPricingTier[]);
