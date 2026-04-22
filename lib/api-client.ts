@@ -606,7 +606,11 @@ export const api = {
 
   // Education Levels
   async getEducationLevels() {
-    return apiRequest('/api/education-levels');
+    const cacheBuster = Date.now();
+    return apiRequest(`/api/education-levels?ts=${cacheBuster}`, {
+      method: 'GET',
+      cache: 'no-store',
+    });
   },
 
   // Settings

@@ -158,7 +158,14 @@ export default function StudentsPage() {
         if (Array.isArray(levelsRes.data)) {
           if (levelsRes.data.length > 0) {
             setEducationLevels(levelsRes.data as EducationLevel[]);
-            console.log('Education levels set:', levelsRes.data);
+            console.log('[StudentsPage] Education levels set:', {
+              count: levelsRes.data.length,
+              values: levelsRes.data.map((level: any) => ({
+                id: level.id,
+                name_ar: level.name_ar,
+                name_en: level.name_en,
+              })),
+            });
           } else {
             console.warn('Education levels array is empty');
             setError('لا توجد مستويات تعليمية في قاعدة البيانات');
@@ -565,7 +572,31 @@ export default function StudentsPage() {
                 <Select
                   label="المستوى التعليمي"
                   value={formData.education_level_id}
+                  onFocus={() => {
+                    console.log('[StudentsPage] Education level select focused/opened', {
+                      count: educationLevels.length,
+                      options: educationLevels.map((level) => ({
+                        id: level.id,
+                        label: level.name_ar || level.name_en,
+                      })),
+                    });
+                  }}
+                  onClick={() => {
+                    console.log('[StudentsPage] Education level select clicked', {
+                      currentValue: formData.education_level_id,
+                      count: educationLevels.length,
+                    });
+                  }}
                   onChange={(e) => {
+                    const selected = educationLevels.find(
+                      (level) => level.id.toString() === e.target.value
+                    );
+                    console.log('[StudentsPage] Education level selected', {
+                      selectedValue: e.target.value,
+                      selectedLevel: selected
+                        ? { id: selected.id, name_ar: selected.name_ar, name_en: selected.name_en }
+                        : null,
+                    });
                     setFormData({
                       ...formData,
                       education_level_id: e.target.value,

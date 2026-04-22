@@ -24,7 +24,17 @@ export async function GET(request: NextRequest) {
       return errorResponse('Failed to fetch education levels');
     }
 
-    return successResponse(levels);
+    console.log('[EducationLevels API] Returning levels:', {
+      count: levels?.length ?? 0,
+      names: (levels || []).map((level) => level?.name_ar || level?.name_en || `id:${level?.id}`),
+    });
+
+    const response = successResponse(levels);
+    response.headers.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+    response.headers.set('Pragma', 'no-cache');
+    response.headers.set('Expires', '0');
+    response.headers.set('Surrogate-Control', 'no-store');
+    return response;
   } catch (error) {
     console.error('Get education levels error:', error);
     return errorResponse('An error occurred while fetching education levels');
