@@ -95,8 +95,25 @@ export default function StudentsPage() {
       ];
     }
 
+    if (levelName.includes('بستان') || levelName.includes('bustan')) {
+      return [
+        ...defaultOption,
+        { value: 'بستان', label: 'بستان' },
+      ];
+    }
+
     return defaultOption;
   }, [selectedEducationLevel]);
+
+  useEffect(() => {
+    const levelName = (selectedEducationLevel?.name_ar || selectedEducationLevel?.name_en || '').toLowerCase();
+    const isBustan = levelName.includes('بستان') || levelName.includes('bustan');
+
+    if (isBustan && formData.class !== 'بستان') {
+      setFormData((prev) => ({ ...prev, class: 'بستان' }));
+      setFieldErrors((prev) => ({ ...prev, class: undefined }));
+    }
+  }, [selectedEducationLevel, formData.class]);
 
   useEffect(() => {
     if (isTeacher && !isAdmin) {
